@@ -2,7 +2,7 @@ extends "res://scripts/football/player_body.gd"
 
 signal went_out_of_bounds(receiver)
 
-var route_points: Array[Vector2] = []
+var route_points: PackedVector2Array = PackedVector2Array()
 var route_index: int = 0
 var running_route: bool = false
 var is_ball_carrier: bool = false
@@ -13,10 +13,11 @@ var auto_forward_weight: float = 0.72
 
 func _ready() -> void:
     body_color = Color("2f77c7")
-    label_text = "WR"
+    if label_text == "P":
+        label_text = "WR"
     super()
 
-func start_route(points: Array[Vector2]) -> void:
+func start_route(points: PackedVector2Array) -> void:
     route_points = points
     route_index = 0
     running_route = true

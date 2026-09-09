@@ -8,7 +8,7 @@ A Godot 4.x / GDScript vertical slice implementing the first playable offensive-
 - Code-drawn football field and placeholder players
 - Quarterback drag-to-aim / release-to-throw passing
 - Projected throw path
-- Two receiver routes
+- Two receiver routes with a pre-snap route diagram
 - Four simplified defenders with coverage / ball reaction / pursuit
 - Catch radius logic
 - User-steerable running after the catch
@@ -19,6 +19,7 @@ A Godot 4.x / GDScript vertical slice implementing the first playable offensive-
 - 5:00 drive clock
 - Scoreboard
 - Play reset and drive restart
+- Original fictional matchup: the Harbor Hawks vs. the Ironvale Forge
 
 No franchise, player-development, save, draft, coaching, or league systems are implemented yet by design.
 
@@ -44,6 +45,8 @@ No franchise, player-development, save, draft, coaching, or league systems are i
 ## Phase 1 completion target
 
 The prototype intentionally stops at the smallest vertical slice: launch the game, run routes, throw passes, gain yards, get first downs, and score a touchdown.
+
+Defenders remain set until the throw, then transition from coverage to pursuit. A brief catch-protection window keeps successful completions readable and gives the player a fair moment to begin steering before tackle checks start.
 
 ## Notes
 
