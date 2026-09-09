@@ -8,7 +8,6 @@ signal aim_cancelled
 var aiming: bool = false
 var aim_start: Vector2 = Vector2.ZERO
 var can_throw: bool = true
-var perspective_view = null
 const MAX_DRAG: float = 260.0
 const MIN_THROW_DRAG: float = 35.0
 
@@ -16,9 +15,6 @@ func _ready() -> void:
     body_color = Color("2f77c7")
     label_text = "QB"
     super()
-
-func set_perspective_view(view) -> void:
-    perspective_view = view
 
 func _unhandled_input(event: InputEvent) -> void:
     if not can_throw:
@@ -46,8 +42,6 @@ func _unhandled_input(event: InputEvent) -> void:
         _update_aim(_to_world(event.position))
 
 func _to_world(screen_pos: Vector2) -> Vector2:
-    if perspective_view != null and perspective_view.visible:
-        return perspective_view.unproject(screen_pos)
     return get_viewport().canvas_transform.affine_inverse() * screen_pos
 
 func _begin_aim(world_pos: Vector2) -> void:
