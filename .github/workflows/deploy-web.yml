@@ -62,6 +62,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}"
+
+          # Give the preset the exact template path used by this runner. This
+          # avoids relying on Godot's global template-directory discovery,
+          # which can report an empty "configuration errors" list in 4.3.
+          release_template="${XDG_DATA_HOME}/godot/export_templates/${GODOT_VERSION}.stable/web_release.zip"
+          test -s "${release_template}"
+          python3 - "${release_template}" <<'PY'
+          from pathlib import Path
+          import sys
+
+          preset_path = Path("export_presets.cfg")
+          preset = preset_path.read_text()
+          setting = 'custom_template/release=""'
+          if preset.count(setting) != 1:
+              raise SystemExit(f"Expected exactly one empty release template setting in {preset_path}")
+          preset_path.write_text(preset.replace(setting, f'custom_template/release="{sys.argv[1]}"'))
+          PY
+
           godot --headless --editor --path . --quit
           godot --headless --verbose --path . \
             --export-release "Web" "${EXPORT_DIR}/index.html"
