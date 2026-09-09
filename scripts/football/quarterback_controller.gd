@@ -22,41 +22,44 @@ func _unhandled_input(event: InputEvent) -> void:
 
     if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
         if event.pressed:
-            _begin_aim(event.position)
+            _begin_aim(_to_world(event.position))
         elif aiming:
-            _release_aim(event.position)
+            _release_aim(_to_world(event.position))
         return
 
     if event is InputEventMouseMotion and aiming:
-        _update_aim(event.position)
+        _update_aim(_to_world(event.position))
         return
 
     if event is InputEventScreenTouch:
         if event.pressed:
-            _begin_aim(event.position)
+            _begin_aim(_to_world(event.position))
         elif aiming:
-            _release_aim(event.position)
+            _release_aim(_to_world(event.position))
         return
 
     if event is InputEventScreenDrag and aiming:
-        _update_aim(event.position)
+        _update_aim(_to_world(event.position))
 
-func _begin_aim(screen_pos: Vector2) -> void:
-    if global_position.distance_to(screen_pos) <= 55.0:
+func _to_world(screen_pos: Vector2) -> Vector2:
+    return get_viewport().canvas_transform.affine_inverse() * screen_pos
+
+func _begin_aim(world_pos: Vector2) -> void:
+    if global_position.distance_to(world_pos) <= 55.0:
         aiming = true
         aim_start = global_position
         aim_started.emit()
         aim_updated.emit(Vector2.RIGHT, 0.0)
 
-func _update_aim(screen_pos: Vector2) -> void:
-    var drag: Vector2 = screen_pos - aim_start
+func _update_aim(world_pos: Vector2) -> void:
+    var drag: Vector2 = world_pos - aim_start
     var distance: float = minf(drag.length(), MAX_DRAG)
     if distance <= 0.001:
         return
     aim_updated.emit(drag.normalized(), distance / MAX_DRAG)
 
-func _release_aim(screen_pos: Vector2) -> void:
-    var drag: Vector2 = screen_pos - aim_start
+func _release_aim(world_pos: Vector2) -> void:
+    var drag: Vector2 = world_pos - aim_start
     aiming = false
     if drag.length() < MIN_THROW_DRAG:
         aim_cancelled.emit()

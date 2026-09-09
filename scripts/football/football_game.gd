@@ -7,6 +7,7 @@ const ReceiverScript = preload("res://scripts/football/receiver_controller.gd")
 const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
+const GameCameraScript = preload("res://scripts/football/game_camera.gd")
 
 # Phase 1 vertical slice: one offensive drive with passing, routes, defense,
 # catches, user-controlled YAC, downs, first downs, touchdown, clock, and reset.
@@ -16,6 +17,7 @@ enum PlayState { PRE_SNAP, AIMING, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
 var state: int = PlayState.PRE_SNAP
 var field
 var scoreboard
+var camera
 var qb
 var receivers: Array = []
 var defenders: Array = []
@@ -44,6 +46,9 @@ func _ready() -> void:
 func _build_world() -> void:
     field = FieldViewScript.new()
     add_child(field)
+
+    camera = GameCameraScript.new()
+    add_child(camera)
 
     aim_line = Line2D.new()
     aim_line.width = 3.0
@@ -80,6 +85,7 @@ func _build_world() -> void:
     scoreboard = ScoreboardScript.new()
     scoreboard.restart_drive_requested.connect(_start_new_drive)
     scoreboard.back_to_menu_requested.connect(_back_to_menu)
+    scoreboard.view_mode_toggle_requested.connect(_on_view_mode_toggle_requested)
     add_child(scoreboard)
 
 func _start_new_drive() -> void:
@@ -106,6 +112,7 @@ func _prepare_play(message: String = "") -> void:
     play_start_x = line_of_scrimmage_x
     first_down_x = line_of_scrimmage_x + float(yards_to_go) * GameConstants.PIXELS_PER_YARD
     field.set_markers(line_of_scrimmage_x, first_down_x)
+    camera.set_target(qb)
 
     qb.reset_for_play(Vector2(line_of_scrimmage_x - 55.0, 390.0))
     receivers[0].reset_for_play(Vector2(line_of_scrimmage_x - 4.0, 245.0))
@@ -207,6 +214,7 @@ func _on_pass_caught(receiver) -> void:
     current_carrier = receiver
     tackle_grace_seconds = 0.32
     current_carrier.become_ball_carrier()
+    camera.set_target(current_carrier)
     state = PlayState.LIVE_RUN
     for other_receiver in receivers:
         if other_receiver != receiver:
@@ -256,25 +264,28 @@ func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
         steer_touch_active = event.pressed
         if event.pressed:
-            steer_origin = event.position
+            steer_origin = _to_world(event.position)
         else:
             current_carrier.set_carrier_input(Vector2.ZERO)
         return
 
     if event is InputEventMouseMotion and steer_touch_active:
-        current_carrier.set_carrier_input(event.position - steer_origin)
+        current_carrier.set_carrier_input(_to_world(event.position) - steer_origin)
         return
 
     if event is InputEventScreenTouch:
         steer_touch_active = event.pressed
         if event.pressed:
-            steer_origin = event.position
+            steer_origin = _to_world(event.position)
         else:
             current_carrier.set_carrier_input(Vector2.ZERO)
         return
 
     if event is InputEventScreenDrag and steer_touch_active:
-        current_carrier.set_carrier_input(event.position - steer_origin)
+        current_carrier.set_carrier_input(_to_world(event.position) - steer_origin)
+
+func _to_world(screen_pos: Vector2) -> Vector2:
+    return get_viewport().canvas_transform.affine_inverse() * screen_pos
 
 func _on_receiver_out_of_bounds(receiver) -> void:
     if state == PlayState.LIVE_RUN and receiver == current_carrier and not play_resolution_pending:
@@ -341,3 +352,8 @@ func _end_drive(title: String, detail: String) -> void:
 
 func _back_to_menu() -> void:
     get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _on_view_mode_toggle_requested() -> void:
+    var is_behind_qb: bool = camera.view_mode == GameCameraScript.ViewMode.SIDELINE
+    camera.set_view_mode(GameCameraScript.ViewMode.BEHIND_QB if is_behind_qb else GameCameraScript.ViewMode.SIDELINE)
+    scoreboard.set_view_mode_label(is_behind_qb)
