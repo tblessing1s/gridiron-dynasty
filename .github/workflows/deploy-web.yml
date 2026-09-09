@@ -57,6 +57,8 @@ jobs:
           # "configuration errors" message when a template is misplaced.
           test -s "${template_dir}/web_debug.zip"
           test -s "${template_dir}/web_release.zip"
+          test -s "${template_dir}/web_nothreads_debug.zip"
+          test -s "${template_dir}/web_nothreads_release.zip"
 
           godot --version
 
@@ -69,18 +71,42 @@ jobs:
           # Give the preset the exact template path used by this runner. This
           # avoids relying on Godot's global template-directory discovery,
           # which can report an empty "configuration errors" list in 4.3.
-          release_template="${XDG_DATA_HOME}/godot/export_templates/${GODOT_VERSION}.stable/web_release.zip"
-          test -s "${release_template}"
-          python3 - "${release_template}" <<'PY'
+          #
+          # The template filename encodes the variant/extensions_support and
+          # variant/thread_support options (see Godot's own
+          # EditorExportPlatformWeb::_get_template_name): picking the wrong
+          # one silently ships a mismatched build - e.g. the threaded
+          # "web_release.zip" binary always needs SharedArrayBuffer even
+          # when the preset says thread_support=false, which crashes on
+          # hosts like GitHub Pages that can't send COOP/COEP headers. So
+          # derive the filename from the preset instead of hardcoding it.
+          template_dir="${XDG_DATA_HOME}/godot/export_templates/${GODOT_VERSION}.stable"
+          python3 - "${template_dir}" <<'PY'
           from pathlib import Path
           import sys
 
           preset_path = Path("export_presets.cfg")
           preset = preset_path.read_text()
+
+          def enabled(option):
+              return f'{option}=true' in preset
+
+          name = "web"
+          if enabled("variant/extensions_support"):
+              name += "_dlink"
+          if not enabled("variant/thread_support"):
+              name += "_nothreads"
+          name += "_release.zip"
+
+          release_template = Path(sys.argv[1]) / name
+          if not release_template.is_file() or release_template.stat().st_size == 0:
+              raise SystemExit(f"Expected export template at {release_template}")
+
           setting = 'custom_template/release=""'
           if preset.count(setting) != 1:
               raise SystemExit(f"Expected exactly one empty release template setting in {preset_path}")
-          preset_path.write_text(preset.replace(setting, f'custom_template/release="{sys.argv[1]}"'))
+          preset_path.write_text(preset.replace(setting, f'custom_template/release="{release_template}"'))
+          print(f"Using release template: {release_template}")
           PY
 
           # Plain --quit can cut the editor off before the resource import
