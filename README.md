@@ -32,10 +32,10 @@ No franchise, player-development, save, draft, coaching, or league systems are i
 ## Controls
 
 ### Passing
-- Touch/click the **QB**.
-- Drag in the direction you want to throw.
+- Press and hold the **QB** to start the play and send receivers on their routes.
+- Keep holding while you drag in the direction you want to throw.
 - Longer drag = deeper throw.
-- Release to throw.
+- The ball is not thrown until you release.
 
 ### Running after catch
 - Touch/click and drag anywhere to steer.

@@ -11,7 +11,7 @@ const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
 # Phase 1 vertical slice: one offensive drive with passing, routes, defense,
 # catches, user-controlled YAC, downs, first downs, touchdown, clock, and reset.
 
-enum PlayState { PRE_SNAP, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
+enum PlayState { PRE_SNAP, AIMING, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
 
 var state: int = PlayState.PRE_SNAP
 var field
@@ -53,6 +53,7 @@ func _build_world() -> void:
     add_child(aim_line)
 
     qb = QuarterbackScript.new()
+    qb.aim_started.connect(_on_aim_started)
     qb.throw_requested.connect(_on_throw_requested)
     qb.aim_updated.connect(_on_aim_updated)
     qb.aim_cancelled.connect(_on_aim_cancelled)
@@ -152,9 +153,19 @@ func _build_routes() -> Array[PackedVector2Array]:
     return routes
 
 func _on_aim_updated(direction: Vector2, strength: float) -> void:
-    if state != PlayState.PRE_SNAP:
+    if state != PlayState.AIMING:
         return
     _update_projected_arc(direction, strength)
+
+func _on_aim_started() -> void:
+    if state == PlayState.PRE_SNAP:
+        # Pressing the QB is the snap. Routes, coverage, and the clock all begin
+        # while the player is still holding and aiming; release launches the ball.
+        state = PlayState.AIMING
+        _begin_routes()
+        for defender in defenders:
+            defender.set_ai_enabled(true)
+        scoreboard.set_message("Play live • Hold and drag to lead a receiver • Release to throw")
 
 func _update_projected_arc(direction: Vector2, strength: float) -> void:
     aim_line.clear_points()
@@ -175,12 +186,13 @@ func _update_projected_arc(direction: Vector2, strength: float) -> void:
 func _on_aim_cancelled() -> void:
     aim_line.visible = false
     aim_line.clear_points()
+    if state == PlayState.AIMING:
+        scoreboard.set_message("Throw cancelled • Touch the QB, drag, and release")
 
 func _on_throw_requested(direction: Vector2, strength: float) -> void:
-    if state != PlayState.PRE_SNAP:
+    if state != PlayState.AIMING:
         return
     state = PlayState.LIVE_PASS
-    _begin_routes()
     aim_line.visible = false
     aim_line.clear_points()
     football.launch(qb.global_position + Vector2(20, 0), direction, strength, receivers)
@@ -210,7 +222,7 @@ func _on_pass_incomplete() -> void:
     _finish_play(play_start_x, false, "INCOMPLETE")
 
 func _physics_process(delta: float) -> void:
-    if state == PlayState.LIVE_PASS or state == PlayState.LIVE_RUN:
+    if state == PlayState.AIMING or state == PlayState.LIVE_PASS or state == PlayState.LIVE_RUN:
         clock_seconds = maxf(clock_seconds - delta, 0.0)
         scoreboard.update_clock(clock_seconds)
         if clock_seconds <= 0.0:
