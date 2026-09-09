@@ -3,7 +3,10 @@ name: Deploy web prototype
 on:
   push:
     branches:
-      - main
+      - master
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
@@ -80,7 +83,11 @@ jobs:
           preset_path.write_text(preset.replace(setting, f'custom_template/release="{sys.argv[1]}"'))
           PY
 
-          godot --headless --editor --path . --quit
+          # Plain --quit can cut the editor off before the resource import
+          # pass finishes (godotengine/godot#77508), which then makes the
+          # export step below fail with an empty "configuration errors"
+          # message. --quit-after 2 lets the import queue actually drain.
+          godot --headless --editor --path . --quit-after 2
           godot --headless --verbose --path . \
             --export-release "Web" "${EXPORT_DIR}/index.html"
           test -s "${EXPORT_DIR}/index.html"
@@ -93,14 +100,17 @@ jobs:
           if-no-files-found: error
 
       - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ env.EXPORT_DIR }}
 
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
