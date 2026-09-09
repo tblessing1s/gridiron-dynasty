@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const GameConstants = preload("res://scripts/core/game_constants.gd")
+
 signal back_to_menu_requested
 signal restart_drive_requested
 
@@ -26,11 +28,12 @@ func _build_ui() -> void:
     top_bar.size = Vector2(1280, 80)
     add_child(top_bar)
 
-    score_label = _make_label(Vector2(28, 17), Vector2(310, 48), 26)
-    score_label.text = "HOME 0   AWAY 0"
+    score_label = _make_label(Vector2(28, 17), Vector2(400, 48), 26)
+    score_label.text = "%s 0   %s 0" % [GameConstants.HOME_TEAM_NAME, GameConstants.AWAY_TEAM_NAME]
+    score_label.add_theme_font_size_override("font_size", 20)
     add_child(score_label)
 
-    situation_label = _make_label(Vector2(430, 17), Vector2(420, 48), 24)
+    situation_label = _make_label(Vector2(440, 17), Vector2(410, 48), 24)
     situation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     add_child(situation_label)
 
@@ -83,7 +86,7 @@ func _make_label(pos: Vector2, size: Vector2, font_size: int) -> Label:
     return label
 
 func update_score(home_score: int, away_score: int) -> void:
-    score_label.text = "HOME %d   AWAY %d" % [home_score, away_score]
+    score_label.text = "%s %d   %s %d" % [GameConstants.HOME_TEAM_NAME, home_score, GameConstants.AWAY_TEAM_NAME, away_score]
 
 func update_situation(down: int, yards_to_go: int, ball_yard: int) -> void:
     var down_index: int = clampi(down, 1, 4)

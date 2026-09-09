@@ -13,3 +13,8 @@ const PLAYER_RADIUS: float = 14.0
 const TACKLE_RADIUS: float = 26.0
 const CATCH_RADIUS: float = 34.0
 const OUT_OF_BOUNDS_MARGIN: float = 12.0
+
+# Fictional Phase 1 matchup. Keeping presentation data here avoids coupling the
+# scoreboard to the drive rules and gives the prototype its own identity.
+const HOME_TEAM_NAME: String = "HARBOR HAWKS"
+const AWAY_TEAM_NAME: String = "IRONVALE FORGE"

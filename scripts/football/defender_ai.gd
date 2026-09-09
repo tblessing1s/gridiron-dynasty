@@ -6,11 +6,13 @@ var coverage_offset: Vector2 = Vector2(12.0, 18.0)
 var coverage_speed: float = 175.0
 var pursuit_speed: float = 205.0
 var watched_football = null
+var ai_enabled: bool = false
 
 func _ready() -> void:
     body_color = Color("c14949")
     outline_color = Color("ffd7d7")
-    label_text = "D"
+    if label_text == "P":
+        label_text = "D"
     super()
 
 func reset_for_play(pos: Vector2, receiver) -> void:
@@ -19,6 +21,12 @@ func reset_for_play(pos: Vector2, receiver) -> void:
     covered_receiver = receiver
     ball_carrier = null
     watched_football = null
+    ai_enabled = false
+
+func set_ai_enabled(enabled: bool) -> void:
+    ai_enabled = enabled
+    if not ai_enabled:
+        velocity = Vector2.ZERO
 
 func set_ball_carrier(carrier) -> void:
     ball_carrier = carrier
@@ -27,6 +35,9 @@ func watch_ball(ball) -> void:
     watched_football = ball
 
 func _physics_process(_delta: float) -> void:
+    if not ai_enabled:
+        velocity = Vector2.ZERO
+        return
     var target: Vector2 = global_position
     var speed: float = coverage_speed
 
