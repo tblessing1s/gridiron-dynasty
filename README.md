@@ -77,7 +77,7 @@ Then visit `http://localhost:8080`. The export has browser threads disabled, so 
 
 The prototype intentionally stops at the smallest vertical slice: launch the game, run routes, throw passes, gain yards, get first downs, and score a touchdown.
 
-Defenders remain set until the QB is pressed, then begin coverage while the user aims. They react to the ball after release and transition to pursuit after a catch. A brief catch-protection window keeps successful completions readable and gives the player a fair moment to begin steering before tackle checks start.
+Defenders remain set until the throw, then transition from coverage to pursuit. A brief catch-protection window keeps successful completions readable and gives the player a fair moment to begin steering before tackle checks start.
 
 ## Notes
 

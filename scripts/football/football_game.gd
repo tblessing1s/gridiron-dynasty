@@ -197,6 +197,7 @@ func _on_throw_requested(direction: Vector2, strength: float) -> void:
     aim_line.clear_points()
     football.launch(qb.global_position + Vector2(20, 0), direction, strength, receivers)
     for defender in defenders:
+        defender.set_ai_enabled(true)
         defender.watch_ball(football)
     scoreboard.set_message("Pass in the air…")
 
