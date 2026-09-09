@@ -93,8 +93,8 @@ func _build_world() -> void:
     camera.limit_top = int(GameConstants.FIELD_RECT.position.y)
     camera.limit_bottom = int(GameConstants.FIELD_RECT.end.y)
     camera.position = Vector2(line_of_scrimmage_x, (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5)
-    camera.make_current()
     world_view.add_child(camera)
+    camera.make_current()
 
     scoreboard = ScoreboardScript.new()
     scoreboard.restart_drive_requested.connect(_start_new_drive)
