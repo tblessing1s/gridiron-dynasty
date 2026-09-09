@@ -7,20 +7,17 @@ const ReceiverScript = preload("res://scripts/football/receiver_controller.gd")
 const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
-const PerspectiveViewScript = preload("res://scripts/football/perspective_view.gd")
 
 # Phase 1 vertical slice: one offensive drive with passing, routes, defense,
 # catches, user-controlled YAC, downs, first downs, touchdown, clock, and reset.
 
 enum PlayState { PRE_SNAP, AIMING, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
-enum ViewMode { SIDELINE, BEHIND_QB }
 
 var state: int = PlayState.PRE_SNAP
-var view_mode: int = ViewMode.SIDELINE
 var world_view: Node2D
 var field
 var scoreboard
-var perspective_view
+var camera: Camera2D
 var qb
 var receivers: Array = []
 var defenders: Array = []
@@ -85,16 +82,23 @@ func _build_world() -> void:
     football.pass_incomplete.connect(_on_pass_incomplete)
     world_view.add_child(football)
 
-    perspective_view = PerspectiveViewScript.new()
-    perspective_view.configure(qb, receivers, defenders, football)
-    perspective_view.visible = false
-    qb.set_perspective_view(perspective_view)
-    add_child(perspective_view)
+    # A close, top-down camera that follows the ball instead of showing the
+    # whole 100-yard field at once, so players read clearly at Tecmo-Bowl scale.
+    camera = Camera2D.new()
+    camera.zoom = Vector2(0.55, 0.55)
+    camera.position_smoothing_enabled = true
+    camera.position_smoothing_speed = 6.0
+    camera.limit_left = int(GameConstants.FIELD_RECT.position.x)
+    camera.limit_right = int(GameConstants.FIELD_RECT.end.x)
+    camera.limit_top = int(GameConstants.FIELD_RECT.position.y)
+    camera.limit_bottom = int(GameConstants.FIELD_RECT.end.y)
+    camera.position = Vector2(line_of_scrimmage_x, (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5)
+    camera.make_current()
+    world_view.add_child(camera)
 
     scoreboard = ScoreboardScript.new()
     scoreboard.restart_drive_requested.connect(_start_new_drive)
     scoreboard.back_to_menu_requested.connect(_back_to_menu)
-    scoreboard.view_mode_toggle_requested.connect(_on_view_mode_toggle_requested)
     add_child(scoreboard)
 
 func _start_new_drive() -> void:
@@ -121,8 +125,6 @@ func _prepare_play(message: String = "") -> void:
     play_start_x = line_of_scrimmage_x
     first_down_x = line_of_scrimmage_x + float(yards_to_go) * GameConstants.PIXELS_PER_YARD
     field.set_markers(line_of_scrimmage_x, first_down_x)
-    perspective_view.update_markers(line_of_scrimmage_x, first_down_x)
-    perspective_view.set_target(qb)
 
     qb.reset_for_play(Vector2(line_of_scrimmage_x - 55.0, 390.0))
     receivers[0].reset_for_play(Vector2(line_of_scrimmage_x - 4.0, 245.0))
@@ -224,7 +226,6 @@ func _on_pass_caught(receiver) -> void:
     current_carrier = receiver
     tackle_grace_seconds = 0.32
     current_carrier.become_ball_carrier()
-    perspective_view.set_target(current_carrier)
     state = PlayState.LIVE_RUN
     for other_receiver in receivers:
         if other_receiver != receiver:
@@ -240,6 +241,8 @@ func _on_pass_incomplete() -> void:
     _finish_play(play_start_x, false, "INCOMPLETE")
 
 func _physics_process(delta: float) -> void:
+    _update_camera()
+
     if state == PlayState.AIMING or state == PlayState.LIVE_PASS or state == PlayState.LIVE_RUN:
         clock_seconds = maxf(clock_seconds - delta, 0.0)
         scoreboard.update_clock(clock_seconds)
@@ -295,9 +298,18 @@ func _unhandled_input(event: InputEvent) -> void:
         current_carrier.set_carrier_input(_to_world(event.position) - steer_origin)
 
 func _to_world(screen_pos: Vector2) -> Vector2:
-    if view_mode == ViewMode.BEHIND_QB:
-        return perspective_view.unproject(screen_pos)
     return get_viewport().canvas_transform.affine_inverse() * screen_pos
+
+# Keeps the top-down camera framed on the live action: the snap point before
+# the ball is thrown, the ball in flight, then the runner after the catch.
+func _update_camera() -> void:
+    var focus_y: float = (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5
+    var focus: Vector2 = Vector2(line_of_scrimmage_x + 90.0, focus_y)
+    if state == PlayState.LIVE_PASS and football != null:
+        focus = football.global_position
+    elif state == PlayState.LIVE_RUN and current_carrier != null and is_instance_valid(current_carrier):
+        focus = current_carrier.global_position
+    camera.position = focus
 
 func _on_receiver_out_of_bounds(receiver) -> void:
     if state == PlayState.LIVE_RUN and receiver == current_carrier and not play_resolution_pending:
@@ -364,10 +376,3 @@ func _end_drive(title: String, detail: String) -> void:
 
 func _back_to_menu() -> void:
     get_tree().change_scene_to_file("res://scenes/main.tscn")
-
-func _on_view_mode_toggle_requested() -> void:
-    view_mode = ViewMode.BEHIND_QB if view_mode == ViewMode.SIDELINE else ViewMode.SIDELINE
-    var is_behind_qb: bool = view_mode == ViewMode.BEHIND_QB
-    world_view.visible = not is_behind_qb
-    perspective_view.visible = is_behind_qb
-    scoreboard.set_view_mode_label(is_behind_qb)
