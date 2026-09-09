@@ -4,6 +4,7 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 
 var line_of_scrimmage_x: float = GameConstants.STARTING_LOS_X
 var first_down_x: float = GameConstants.STARTING_LOS_X + (10.0 * GameConstants.PIXELS_PER_YARD)
+var route_previews: Array[PackedVector2Array] = []
 
 func _ready() -> void:
     z_index = -10
@@ -12,6 +13,14 @@ func _ready() -> void:
 func set_markers(los_x: float, first_x: float) -> void:
     line_of_scrimmage_x = los_x
     first_down_x = first_x
+    queue_redraw()
+
+func set_route_previews(routes: Array[PackedVector2Array]) -> void:
+    route_previews = routes
+    queue_redraw()
+
+func clear_route_previews() -> void:
+    route_previews.clear()
     queue_redraw()
 
 func _draw() -> void:
@@ -42,7 +51,15 @@ func _draw() -> void:
     if first_down_x < GameConstants.RIGHT_GOAL_X:
         draw_line(Vector2(first_down_x, GameConstants.FIELD_TOP), Vector2(first_down_x, GameConstants.FIELD_BOTTOM), Color("ffd84d"), 3.0)
 
-    _draw_centered_text(Vector2(90.0, 390.0), "HOME", 24)
+    # Pre-snap route art doubles as a simple play diagram and teaches new
+    # players where to lead each receiver without adding another tutorial.
+    for route in route_previews:
+        if route.size() >= 2:
+            draw_polyline(route, Color(0.72, 0.9, 1.0, 0.62), 3.0, true)
+            var target: Vector2 = route[route.size() - 1]
+            draw_circle(target, 6.0, Color(0.72, 0.9, 1.0, 0.82), false, 2.0)
+
+    _draw_centered_text(Vector2(90.0, 390.0), "HAWKS", 20)
     _draw_centered_text(Vector2(1190.0, 390.0), "TD", 24)
 
 func _draw_centered_text(pos: Vector2, text: String, font_size: int) -> void:

@@ -11,7 +11,7 @@ const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
 # Phase 1 vertical slice: one offensive drive with passing, routes, defense,
 # catches, user-controlled YAC, downs, first downs, touchdown, clock, and reset.
 
-enum PlayState { PRE_SNAP, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
+enum PlayState { PRE_SNAP, AIMING, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
 
 var state: int = PlayState.PRE_SNAP
 var field
@@ -35,6 +35,7 @@ var current_carrier
 var steer_touch_active: bool = false
 var steer_origin: Vector2 = Vector2.ZERO
 var play_resolution_pending: bool = false
+var tackle_grace_seconds: float = 0.0
 
 func _ready() -> void:
     _build_world()
@@ -52,6 +53,7 @@ func _build_world() -> void:
     add_child(aim_line)
 
     qb = QuarterbackScript.new()
+    qb.aim_started.connect(_on_aim_started)
     qb.throw_requested.connect(_on_throw_requested)
     qb.aim_updated.connect(_on_aim_updated)
     qb.aim_cancelled.connect(_on_aim_cancelled)
@@ -100,6 +102,7 @@ func _prepare_play(message: String = "") -> void:
     current_carrier = null
     steer_touch_active = false
     play_resolution_pending = false
+    tackle_grace_seconds = 0.0
     play_start_x = line_of_scrimmage_x
     first_down_x = line_of_scrimmage_x + float(yards_to_go) * GameConstants.PIXELS_PER_YARD
     field.set_markers(line_of_scrimmage_x, first_down_x)
@@ -118,6 +121,8 @@ func _prepare_play(message: String = "") -> void:
     defenders[3].reset_for_play(Vector2(line_of_scrimmage_x + 125.0, 455.0), receivers[1])
     defenders[3].coverage_offset = Vector2(85, -90)
 
+    field.set_route_previews(_build_routes())
+
     football.visible = false
     football.is_airborne = false
     aim_line.visible = false
@@ -127,24 +132,40 @@ func _prepare_play(message: String = "") -> void:
     scoreboard.set_message(message if not message.is_empty() else "Touch the QB and drag to aim.")
 
 func _begin_routes() -> void:
+    var routes: Array[PackedVector2Array] = _build_routes()
+    receivers[0].start_route(routes[0])
+    receivers[1].start_route(routes[1])
+    field.clear_route_previews()
+
+func _build_routes() -> Array[PackedVector2Array]:
     var max_x: float = GameConstants.RIGHT_GOAL_X + 10.0
-    var route_one: Array[Vector2] = [
+    var route_one: PackedVector2Array = PackedVector2Array([
         Vector2(minf(line_of_scrimmage_x + 120.0, max_x), 245.0),
         Vector2(minf(line_of_scrimmage_x + 245.0, max_x), 330.0),
         Vector2(minf(line_of_scrimmage_x + 390.0, max_x), 330.0)
-    ]
-    var route_two: Array[Vector2] = [
+    ])
+    var route_two: PackedVector2Array = PackedVector2Array([
         Vector2(minf(line_of_scrimmage_x + 150.0, max_x), 540.0),
         Vector2(minf(line_of_scrimmage_x + 275.0, max_x), 475.0),
         Vector2(minf(line_of_scrimmage_x + 430.0, max_x), 475.0)
-    ]
-    receivers[0].start_route(route_one)
-    receivers[1].start_route(route_two)
+    ])
+    var routes: Array[PackedVector2Array] = [route_one, route_two]
+    return routes
 
 func _on_aim_updated(direction: Vector2, strength: float) -> void:
-    if state != PlayState.PRE_SNAP:
+    if state != PlayState.AIMING:
         return
     _update_projected_arc(direction, strength)
+
+func _on_aim_started() -> void:
+    if state == PlayState.PRE_SNAP:
+        # Pressing the QB is the snap. Routes, coverage, and the clock all begin
+        # while the player is still holding and aiming; release launches the ball.
+        state = PlayState.AIMING
+        _begin_routes()
+        for defender in defenders:
+            defender.set_ai_enabled(true)
+        scoreboard.set_message("Play live • Hold and drag to lead a receiver • Release to throw")
 
 func _update_projected_arc(direction: Vector2, strength: float) -> void:
     aim_line.clear_points()
@@ -165,12 +186,13 @@ func _update_projected_arc(direction: Vector2, strength: float) -> void:
 func _on_aim_cancelled() -> void:
     aim_line.visible = false
     aim_line.clear_points()
+    if state == PlayState.AIMING:
+        scoreboard.set_message("Throw cancelled • Touch the QB, drag, and release")
 
 func _on_throw_requested(direction: Vector2, strength: float) -> void:
-    if state != PlayState.PRE_SNAP:
+    if state != PlayState.AIMING:
         return
     state = PlayState.LIVE_PASS
-    _begin_routes()
     aim_line.visible = false
     aim_line.clear_points()
     football.launch(qb.global_position + Vector2(20, 0), direction, strength, receivers)
@@ -182,6 +204,7 @@ func _on_pass_caught(receiver) -> void:
     if state != PlayState.LIVE_PASS:
         return
     current_carrier = receiver
+    tackle_grace_seconds = 0.32
     current_carrier.become_ball_carrier()
     state = PlayState.LIVE_RUN
     for other_receiver in receivers:
@@ -198,7 +221,7 @@ func _on_pass_incomplete() -> void:
     _finish_play(play_start_x, false, "INCOMPLETE")
 
 func _physics_process(delta: float) -> void:
-    if state == PlayState.LIVE_PASS or state == PlayState.LIVE_RUN:
+    if state == PlayState.AIMING or state == PlayState.LIVE_PASS or state == PlayState.LIVE_RUN:
         clock_seconds = maxf(clock_seconds - delta, 0.0)
         scoreboard.update_clock(clock_seconds)
         if clock_seconds <= 0.0:
@@ -207,6 +230,8 @@ func _physics_process(delta: float) -> void:
 
     if state != PlayState.LIVE_RUN or current_carrier == null or play_resolution_pending:
         return
+
+    tackle_grace_seconds = maxf(tackle_grace_seconds - delta, 0.0)
 
     # Touchdown.
     if current_carrier.global_position.x >= GameConstants.RIGHT_GOAL_X:
@@ -217,6 +242,8 @@ func _physics_process(delta: float) -> void:
 
     # Tackles.
     for defender in defenders:
+        if tackle_grace_seconds > 0.0:
+            break
         if defender.global_position.distance_to(current_carrier.global_position) <= GameConstants.TACKLE_RADIUS:
             _finish_play(current_carrier.global_position.x, true, "TACKLED")
             return
@@ -262,7 +289,7 @@ func _finish_play(end_x: float, caught: bool, result_text: String) -> void:
         receiver.stop_route()
         receiver.is_ball_carrier = false
     for defender in defenders:
-        defender.velocity = Vector2.ZERO
+        defender.set_ai_enabled(false)
         defender.ball_carrier = null
 
     var gained_yards: int = 0
@@ -306,7 +333,7 @@ func _end_drive(title: String, detail: String) -> void:
         receiver.is_ball_carrier = false
         receiver.velocity = Vector2.ZERO
     for defender in defenders:
-        defender.velocity = Vector2.ZERO
+        defender.set_ai_enabled(false)
         defender.ball_carrier = null
     football.is_airborne = false
     scoreboard.show_drive_result(title, detail)

@@ -1,6 +1,7 @@
 extends "res://scripts/football/player_body.gd"
 
 signal throw_requested(direction: Vector2, strength: float)
+signal aim_started
 signal aim_updated(direction: Vector2, strength: float)
 signal aim_cancelled
 
@@ -44,6 +45,7 @@ func _begin_aim(screen_pos: Vector2) -> void:
     if global_position.distance_to(screen_pos) <= 55.0:
         aiming = true
         aim_start = global_position
+        aim_started.emit()
         aim_updated.emit(Vector2.RIGHT, 0.0)
 
 func _update_aim(screen_pos: Vector2) -> void:

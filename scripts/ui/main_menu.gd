@@ -38,7 +38,7 @@ func _build_ui() -> void:
     column.add_child(title_label)
 
     subtitle_label = Label.new()
-    subtitle_label.text = "Phase 1 • Offensive Drive Prototype"
+    subtitle_label.text = "HARBOR HAWKS  vs  IRONVALE FORGE"
     subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     subtitle_label.add_theme_font_size_override("font_size", 22)
     column.add_child(subtitle_label)
@@ -55,14 +55,14 @@ func _build_ui() -> void:
     column.add_child(start_button)
 
     instructions_label = Label.new()
-    instructions_label.text = "PASS: touch/click the QB, drag toward a receiver, release to throw\nRUN: drag anywhere to steer after the catch • WASD/arrow keys also work"
+    instructions_label.text = "PASS: press the QB to start the play, hold and drag to aim, release to throw\nRUN: drag anywhere to steer after the catch • WASD/arrow keys also work"
     instructions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     instructions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     instructions_label.add_theme_font_size_override("font_size", 18)
     column.add_child(instructions_label)
 
     var goal: Label = Label.new()
-    goal.text = "Goal: move the ball downfield and score a touchdown."
+    goal.text = "One drive. Four downs. Build a comeback one play at a time."
     goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     goal.add_theme_font_size_override("font_size", 18)
     column.add_child(goal)
