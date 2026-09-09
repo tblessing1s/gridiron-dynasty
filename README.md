@@ -29,6 +29,37 @@ No franchise, player-development, save, draft, coaching, or league systems are i
 2. Run the project (`F6`/`F5`, depending on editor workflow).
 3. Press **START DRIVE**.
 
+## Deploy the browser build
+
+The project includes a non-threaded Godot Web export and a GitHub Actions workflow that publishes it to GitHub Pages. The same workflow also creates a downloadable `gridiron-dynasty-web` artifact containing static files that can be hosted by any normal web server.
+
+### One-time GitHub setup
+
+1. Push the repository to GitHub with this project on the `main` branch.
+2. Open **Settings → Pages** in the GitHub repository.
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+4. Push to `main`, or open the **Actions** tab and manually run **Deploy web prototype**.
+5. When the workflow finishes, its deployment summary contains the public Pages URL.
+
+Pull requests do not deploy publicly. This keeps unreviewed builds from replacing the playable version, while the manual workflow trigger makes it possible to redeploy at any time.
+
+### Export locally
+
+With Godot 4.3 and its matching export templates installed:
+
+```bash
+mkdir -p build/web
+godot --headless --path . --export-release "Web" build/web/index.html
+```
+
+Serve the resulting directory rather than opening `index.html` directly:
+
+```bash
+python3 -m http.server 8080 --directory build/web
+```
+
+Then visit `http://localhost:8080`. The export has browser threads disabled, so GitHub Pages and ordinary static hosts do not need custom cross-origin isolation headers.
+
 ## Controls
 
 ### Passing
