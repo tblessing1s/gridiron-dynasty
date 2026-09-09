@@ -7,17 +7,20 @@ const ReceiverScript = preload("res://scripts/football/receiver_controller.gd")
 const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
-const GameCameraScript = preload("res://scripts/football/game_camera.gd")
+const PerspectiveViewScript = preload("res://scripts/football/perspective_view.gd")
 
 # Phase 1 vertical slice: one offensive drive with passing, routes, defense,
 # catches, user-controlled YAC, downs, first downs, touchdown, clock, and reset.
 
 enum PlayState { PRE_SNAP, AIMING, LIVE_PASS, LIVE_RUN, DEAD, DRIVE_OVER }
+enum ViewMode { SIDELINE, BEHIND_QB }
 
 var state: int = PlayState.PRE_SNAP
+var view_mode: int = ViewMode.SIDELINE
+var world_view: Node2D
 var field
 var scoreboard
-var camera
+var perspective_view
 var qb
 var receivers: Array = []
 var defenders: Array = []
@@ -44,43 +47,49 @@ func _ready() -> void:
     _start_new_drive()
 
 func _build_world() -> void:
-    field = FieldViewScript.new()
-    add_child(field)
+    world_view = Node2D.new()
+    add_child(world_view)
 
-    camera = GameCameraScript.new()
-    add_child(camera)
+    field = FieldViewScript.new()
+    world_view.add_child(field)
 
     aim_line = Line2D.new()
     aim_line.width = 3.0
     aim_line.default_color = Color(1, 0.85, 0.3, 0.78)
     aim_line.visible = false
     aim_line.z_index = 30
-    add_child(aim_line)
+    world_view.add_child(aim_line)
 
     qb = QuarterbackScript.new()
     qb.aim_started.connect(_on_aim_started)
     qb.throw_requested.connect(_on_throw_requested)
     qb.aim_updated.connect(_on_aim_updated)
     qb.aim_cancelled.connect(_on_aim_cancelled)
-    add_child(qb)
+    world_view.add_child(qb)
 
     for i in range(2):
         var receiver = ReceiverScript.new()
         receiver.label_text = "WR%d" % (i + 1)
         receiver.went_out_of_bounds.connect(_on_receiver_out_of_bounds)
-        add_child(receiver)
+        world_view.add_child(receiver)
         receivers.append(receiver)
 
     for i in range(4):
         var defender = DefenderScript.new()
         defender.label_text = "D%d" % (i + 1)
-        add_child(defender)
+        world_view.add_child(defender)
         defenders.append(defender)
 
     football = FootballScript.new()
     football.pass_finished.connect(_on_pass_caught)
     football.pass_incomplete.connect(_on_pass_incomplete)
-    add_child(football)
+    world_view.add_child(football)
+
+    perspective_view = PerspectiveViewScript.new()
+    perspective_view.configure(qb, receivers, defenders, football)
+    perspective_view.visible = false
+    qb.set_perspective_view(perspective_view)
+    add_child(perspective_view)
 
     scoreboard = ScoreboardScript.new()
     scoreboard.restart_drive_requested.connect(_start_new_drive)
@@ -112,7 +121,8 @@ func _prepare_play(message: String = "") -> void:
     play_start_x = line_of_scrimmage_x
     first_down_x = line_of_scrimmage_x + float(yards_to_go) * GameConstants.PIXELS_PER_YARD
     field.set_markers(line_of_scrimmage_x, first_down_x)
-    camera.set_target(qb)
+    perspective_view.update_markers(line_of_scrimmage_x, first_down_x)
+    perspective_view.set_target(qb)
 
     qb.reset_for_play(Vector2(line_of_scrimmage_x - 55.0, 390.0))
     receivers[0].reset_for_play(Vector2(line_of_scrimmage_x - 4.0, 245.0))
@@ -214,7 +224,7 @@ func _on_pass_caught(receiver) -> void:
     current_carrier = receiver
     tackle_grace_seconds = 0.32
     current_carrier.become_ball_carrier()
-    camera.set_target(current_carrier)
+    perspective_view.set_target(current_carrier)
     state = PlayState.LIVE_RUN
     for other_receiver in receivers:
         if other_receiver != receiver:
@@ -285,6 +295,8 @@ func _unhandled_input(event: InputEvent) -> void:
         current_carrier.set_carrier_input(_to_world(event.position) - steer_origin)
 
 func _to_world(screen_pos: Vector2) -> Vector2:
+    if view_mode == ViewMode.BEHIND_QB:
+        return perspective_view.unproject(screen_pos)
     return get_viewport().canvas_transform.affine_inverse() * screen_pos
 
 func _on_receiver_out_of_bounds(receiver) -> void:
@@ -354,6 +366,8 @@ func _back_to_menu() -> void:
     get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func _on_view_mode_toggle_requested() -> void:
-    var is_behind_qb: bool = camera.view_mode == GameCameraScript.ViewMode.SIDELINE
-    camera.set_view_mode(GameCameraScript.ViewMode.BEHIND_QB if is_behind_qb else GameCameraScript.ViewMode.SIDELINE)
+    view_mode = ViewMode.BEHIND_QB if view_mode == ViewMode.SIDELINE else ViewMode.SIDELINE
+    var is_behind_qb: bool = view_mode == ViewMode.BEHIND_QB
+    world_view.visible = not is_behind_qb
+    perspective_view.visible = is_behind_qb
     scoreboard.set_view_mode_label(is_behind_qb)
