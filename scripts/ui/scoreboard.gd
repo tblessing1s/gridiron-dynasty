@@ -4,6 +4,7 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 
 signal back_to_menu_requested
 signal restart_drive_requested
+signal view_mode_toggle_requested
 
 const DOWN_NAMES: Array[String] = ["", "1ST", "2ND", "3RD", "4TH"]
 
@@ -16,6 +17,7 @@ var overlay_title: Label
 var overlay_detail: Label
 var restart_button: Button
 var menu_button: Button
+var view_button: Button
 
 func _ready() -> void:
     layer = 100
@@ -78,6 +80,14 @@ func _build_ui() -> void:
     menu_button.pressed.connect(func(): back_to_menu_requested.emit())
     overlay.add_child(menu_button)
 
+    view_button = Button.new()
+    view_button.text = "VIEW: SIDELINE"
+    view_button.position = Vector2(1090, 672)
+    view_button.size = Vector2(170, 40)
+    view_button.add_theme_font_size_override("font_size", 16)
+    view_button.pressed.connect(func(): view_mode_toggle_requested.emit())
+    add_child(view_button)
+
 func _make_label(pos: Vector2, size: Vector2, font_size: int) -> Label:
     var label: Label = Label.new()
     label.position = pos
@@ -111,3 +121,6 @@ func show_drive_result(title: String, detail: String) -> void:
 
 func hide_drive_result() -> void:
     overlay.visible = false
+
+func set_view_mode_label(is_behind_qb: bool) -> void:
+    view_button.text = "VIEW: QB CAM" if is_behind_qb else "VIEW: SIDELINE"
