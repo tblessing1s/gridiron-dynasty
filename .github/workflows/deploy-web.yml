@@ -17,6 +17,7 @@ concurrency:
 
 env:
   GODOT_VERSION: "4.3"
+  XDG_DATA_HOME: /tmp/godot-data
   EXPORT_DIR: build/web
 
 jobs:
@@ -44,10 +45,15 @@ jobs:
           curl --fail --location --retry 3 \
             --output /tmp/templates.tpz \
             "${base_url}/Godot_v${release}_export_templates.tpz"
-          template_dir="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          template_dir="${XDG_DATA_HOME}/godot/export_templates/${GODOT_VERSION}.stable"
           mkdir -p "${template_dir}"
           unzip -q /tmp/templates.tpz -d /tmp/export-templates
           cp -R /tmp/export-templates/templates/. "${template_dir}/"
+
+          # Fail here with a useful message instead of Godot's generic
+          # "configuration errors" message when a template is misplaced.
+          test -s "${template_dir}/web_debug.zip"
+          test -s "${template_dir}/web_release.zip"
 
           godot --version
 
@@ -57,7 +63,8 @@ jobs:
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}"
           godot --headless --editor --path . --quit
-          godot --headless --path . --export-release "Web" "${EXPORT_DIR}/index.html"
+          godot --headless --verbose --path . \
+            --export-release "Web" "${EXPORT_DIR}/index.html"
           test -s "${EXPORT_DIR}/index.html"
 
       - name: Upload portable web build
