@@ -160,8 +160,10 @@ func _show_aftermath() -> void:
                 var gains: Dictionary = BattleXp.gains(battle_stats[team_index][i])
                 if gains.is_empty():
                     continue
-                BattleXp.apply(players[i], gains)
-                xp_report.append({"team": team_index, "index": i, "gains": gains})
+                var kept: Dictionary = BattleXp.apply(players[i], gains, rng)
+                if kept.is_empty():
+                    continue
+                xp_report.append({"team": team_index, "index": i, "gains": kept})
     var subtitle: String = "Territory captured" if last_user_won else "Border territory lost"
     if season_mode and not season_reported:
         season_reported = true
@@ -175,10 +177,11 @@ func _show_aftermath() -> void:
 func _show_raid() -> void:
     aftermath_screen.visible = false
     var after_text: String = "BACK TO MAP" if season_mode else "PLAY AGAIN"
+    var season_number: int = int(SeasonState.season.number) if season_mode else -1
     if last_user_won:
-        raid_screen.setup(teams[0], teams[1], ai_tag_index, true, after_text)
+        raid_screen.setup(teams[0], teams[1], ai_tag_index, true, after_text, season_number)
     else:
-        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false, after_text)
+        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false, after_text, season_number)
     raid_screen.visible = true
 
 func _after_raid() -> void:

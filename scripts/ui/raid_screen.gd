@@ -26,16 +26,18 @@ var confirm_button: Button
 var buttons: HBoxContainer
 var applied: bool = false
 var continue_text: String = "PLAY AGAIN"
+var season_number: int = -1
 
 func _ready() -> void:
     layer = 110
 
-func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int, user_won: bool, after_text: String) -> void:
+func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int, user_won: bool, after_text: String, current_season: int) -> void:
     winner = winner_team
     loser = loser_team
     loser_tag = loser_tag_index
     user_is_winner = user_won
     continue_text = after_text
+    season_number = current_season
     take_index = -1
     give_index = -1
     applied = false
@@ -71,12 +73,12 @@ func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int
 
     var loser_players: Array = loser["players"]
     for i in range(loser_players.size()):
-        var protected: bool = not RaidRules.can_take(i, loser_tag)
+        var protected: bool = not RaidRules.can_take(loser, i, loser_tag, season_number)
         var row: ColorRect = PlayerRow.build(loser_players[i], Rosters.SLOT_TYPES[i], loser["color"], COLUMN_WIDTH, protected)
         row.position = Vector2(40, ROWS_TOP + float(i) * (PlayerRow.HEIGHT + 4.0))
         root.add_child(row)
         if protected:
-            PlayerRow.add_chip(row, "TAGGED", COLUMN_WIDTH - 70.0, Color(1, 0.85, 0.4, 0.9))
+            PlayerRow.add_chip(row, RaidRules.protection_label(loser, i, loser_tag, season_number), COLUMN_WIDTH - 70.0, Color(1, 0.85, 0.4, 0.9))
         var overlay: ColorRect = _overlay(row)
         take_overlays.append(overlay)
         if user_is_winner and not protected:
@@ -100,7 +102,7 @@ func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int
     root.add_child(summary_label)
 
     var note: Label = _label(Vector2(140, 468), Vector2(1000, 48), 14)
-    note.text = "Both players arrive with a morale hit: -%d to every stat. Protected players (the franchise tag) cannot be taken." % RaidRules.MORALE_PENALTY
+    note.text = "Both players arrive with a morale hit (-%d to every stat until the offseason) and grow slower from now on. The franchise tag and first-season rookies cannot be taken." % RaidRules.MORALE_PENALTY
     note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     note.modulate = Color(1, 1, 1, 0.6)
@@ -122,7 +124,7 @@ func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int
     buttons.add_child(menu)
 
     if not user_is_winner:
-        take_index = RaidRules.ai_take(loser, loser_tag)
+        take_index = RaidRules.ai_take(loser, loser_tag, season_number)
         give_index = RaidRules.ai_send_back(winner, take_index)
     _refresh()
 

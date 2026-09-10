@@ -65,10 +65,12 @@ func _build_ui() -> void:
     spacer.custom_minimum_size = Vector2(0, 6)
     column.add_child(spacer)
 
-    if SeasonState.has_season() and not SeasonState.season.over:
+    if SeasonState.offseason != null or (SeasonState.has_season() and SeasonState.season.over):
+        _add_action(column, "CONTINUE OFFSEASON", "Finish aging and the draft, then start season %d." % (SeasonState.season.number + 1), _on_continue_offseason)
+    elif SeasonState.has_season():
         var week: int = SeasonState.season.week
-        _add_action(column, "CONTINUE SEASON", "Week %d of %d. Pick up where you left off." % [mini(week, SeasonScript.MAX_WEEKS), SeasonScript.MAX_WEEKS], _on_continue_season)
-    _add_action(column, "NEW SEASON", "Start a fresh map with fresh rosters.", _on_new_season)
+        _add_action(column, "CONTINUE SEASON", "Season %d, week %d of %d. Pick up where you left off." % [SeasonState.season.number, mini(week, SeasonScript.MAX_WEEKS), SeasonScript.MAX_WEEKS], _on_continue_season)
+    _add_action(column, "NEW DYNASTY", "Start a fresh map with fresh rosters.", _on_new_season)
     _add_action(column, "QUICK BATTLE", "One Border War, Hawks vs Forge, no map.", _on_quick_battle)
 
     _refresh_mode_buttons()
@@ -118,7 +120,11 @@ func _on_continue_season() -> void:
 func _on_new_season() -> void:
     SeasonState.season = SeasonScript.new()
     SeasonState.battle = {}
+    SeasonState.offseason = null
     get_tree().change_scene_to_file("res://scenes/map.tscn")
+
+func _on_continue_offseason() -> void:
+    get_tree().change_scene_to_file("res://scenes/offseason.tscn")
 
 func _on_quick_battle() -> void:
     SeasonState.battle = {}

@@ -49,7 +49,17 @@ After the battle, an **aftermath screen** shows the result, the border bar fille
 - XP and raids persist across the season; **CONTINUE SEASON** on the menu resumes it, including a battle you left mid-way.
 - The season ends when one empire is left or after week 12; the largest empire wins. If you are eliminated you can sim the remaining weeks.
 
-Territory resources are labels only for now; the offseason (draft, aging) is not built yet, so a new season starts fresh.
+## Offseason and draft
+
+When a season ends, **OFFSEASON** runs three steps:
+
+1. **Aging.** Every player gets a year older. Under 24 they grow fast toward a hidden per-stat potential; 24–28 they creep up; 29–31 they decline (Speed first); 32+ they decline hard and roll to retire. Retirees are replaced by a journeyman free agent at the same slot. Morale hits from raids clear here.
+2. **Draft.** One round, first eliminated picks first, the champion picks last. An 18-rookie class with a scout grade (A+ to D, slightly noisy) instead of visible potential. Every pick must replace one of your players at the rookie's slot — the roster stays at seven — so drafting is also a cut. AI empires pick for ceiling and cut their weakest at that slot. Your rookie cannot be raided for the whole coming season.
+3. **New map.** Everyone returns to their capital and outer territory, eliminated empires included; rosters carry over; tags reset.
+
+Players also carry an origin: raided players grow slower for good (each XP point is kept three times in four), so raiding builds win-now teams and drafting builds long-term ones. XP never lifts a stat above its potential.
+
+Territory resources are labels only for now; there are no contracts and no save/load yet.
 
 ## Run
 

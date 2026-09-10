@@ -5,6 +5,7 @@ extends RefCounted
 
 static var season = null
 static var battle: Dictionary = {}
+static var offseason = null
 
 static func has_season() -> bool:
     return season != null
@@ -12,3 +13,4 @@ static func has_season() -> bool:
 static func clear() -> void:
     season = null
     battle = {}
+    offseason = null

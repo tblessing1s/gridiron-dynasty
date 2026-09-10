@@ -191,6 +191,16 @@ func _show_roster() -> void:
         var row: ColorRect = PlayerRow.build(players[i], Rosters.SLOT_TYPES[i], team["color"], 872.0, false)
         row.position = Vector2(24, 60 + float(i) * 48.0)
         roster_panel.add_child(row)
+        PlayerRow.add_chip(row, "AGE %d" % int(players[i].get("age", 0)), 540.0)
+        var origin: String = str(players[i].get("origin", ""))
+        if int(players[i].get("rookie_season", -1)) == season.number:
+            origin = "ROOKIE • protected"
+        elif origin == "raided":
+            origin = "raided • grows slower"
+        elif origin == "original":
+            origin = ""
+        if not origin.is_empty():
+            PlayerRow.add_chip(row, origin, 630.0, Color(1, 0.85, 0.4, 0.9))
     var close: Button = _button("CLOSE", Vector2(360, 420), Vector2(200, 48), 18)
     close.pressed.connect(func() -> void: roster_panel.visible = false)
     roster_panel.add_child(close)
@@ -217,8 +227,8 @@ func _show_summary() -> void:
     summary_body.text = "\n".join(lines)
     summary_panel.add_child(summary_body)
 
-    var again: Button = _button("NEW SEASON", Vector2(250, 520), Vector2(200, 48), 18)
-    again.pressed.connect(_on_new_season)
+    var again: Button = _button("OFFSEASON", Vector2(250, 520), Vector2(200, 48), 18)
+    again.pressed.connect(_on_offseason)
     summary_panel.add_child(again)
     var menu: Button = _button("MENU", Vector2(470, 520), Vector2(200, 48), 18)
     menu.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/main.tscn"))
@@ -233,7 +243,7 @@ func _refresh() -> void:
     if selected_target >= 0 and not attackable.has(selected_target):
         selected_target = -1
 
-    week_label.text = "WEEK %d of %d" % [mini(season.week, season.MAX_WEEKS), season.MAX_WEEKS]
+    week_label.text = "SEASON %d  •  WEEK %d of %d" % [season.number, mini(season.week, season.MAX_WEEKS), season.MAX_WEEKS]
     empire_label.text = "%s • %d territories • roster %d" % [user_team["name"], season.owned_by(season.USER_EMPIRE).size(), Rosters.team_overall(user_team)]
     target_label.text = _target_text()
     attack_button.visible = not season.user_eliminated() and not season.over
@@ -308,14 +318,9 @@ func _launch_or_resolve() -> void:
     season.resolve_week_without_user()
     _refresh()
 
-func _on_new_season() -> void:
-    SeasonState.season = SeasonScript.new()
+func _on_offseason() -> void:
     SeasonState.battle = {}
-    season = SeasonState.season
-    summary_panel.visible = false
-    selected_target = -1
-    info_target = -1
-    _refresh()
+    get_tree().change_scene_to_file("res://scenes/offseason.tscn")
 
 # ---------------------------------------------------------------- helpers
 

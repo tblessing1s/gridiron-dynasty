@@ -46,24 +46,48 @@ var planned_battles: Array = []
 var user_battle: Dictionary = {}
 var over: bool = false
 var winner_id: int = -1
+var number: int = 1
+var previous_champion: int = -1
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 func _init() -> void:
     rng.randomize()
-    _build()
+    _build_empires([])
+    _build_territories()
 
-func _build() -> void:
+# A new season on a fresh map, keeping every empire's roster from the
+# season before. Eliminated empires come back; tags reset.
+func reset_for_new_season(previous_empires: Array, next_number: int, champion: int) -> void:
+    number = next_number
+    previous_champion = champion
+    week = 1
+    over = false
+    winner_id = -1
+    elimination_order.clear()
+    log.clear()
+    planned_battles.clear()
+    user_battle = {}
+    var rosters: Array = []
+    for e in previous_empires:
+        rosters.append(e["players"])
+    _build_empires(rosters)
+    _build_territories()
+
+func _build_empires(existing_rosters: Array) -> void:
     empires.clear()
-    territories.clear()
     for i in range(EMPIRE_COUNT):
         var entry: Array = EMPIRE_NAMES[i]
         var players: Array
-        if i == 0:
+        if i < existing_rosters.size():
+            players = existing_rosters[i]
+        elif i == 0:
             players = Rosters.hawks()["players"]
         elif i == 1:
             players = Rosters.forge()["players"]
         else:
             players = Rosters.generate_players(rng.randi_range(54, 72), rng)
+        for player in players:
+            Rosters.ensure_career(player, rng)
         empires.append({
             "id": i,
             "name": entry[0],
@@ -76,6 +100,8 @@ func _build() -> void:
             "is_user": i == USER_EMPIRE,
         })
 
+func _build_territories() -> void:
+    territories.clear()
     for row in range(ROWS):
         for column in range(COLUMNS):
             var id: int = row * COLUMNS + column
@@ -309,7 +335,7 @@ func _ai_raid(winner: int, loser: int) -> void:
     var loser_tag: int = int(loser_team["tag_index"])
     if loser_tag < 0:
         loser_tag = Rosters.best_player_index(loser_team)
-    var take: int = RaidRules.ai_take(loser_team, loser_tag)
+    var take: int = RaidRules.ai_take(loser_team, loser_tag, number)
     if take < 0:
         return
     var give: int = RaidRules.ai_send_back(winner_team, take)

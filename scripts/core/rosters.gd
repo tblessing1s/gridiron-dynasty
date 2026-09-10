@@ -80,6 +80,90 @@ static func generate_players(rating: int, rng: RandomNumberGenerator) -> Array:
         ))
     return players
 
+const STAT_KEYS: Array[String] = ["speed", "power", "skill", "awareness"]
+const ROOKIE_SLOT_TYPES: Array[String] = ["QB", "RB", "WR", "BL"]
+const ROOKIE_SLOT_WEIGHTS: Array[int] = [1, 1, 2, 3]
+
+# Career fields: age, a hidden per-stat ceiling, where the player came from,
+# and how fast he grows for this team. Added lazily so hand-made rosters
+# and older saves pick them up.
+static func ensure_career(player: Dictionary, rng: RandomNumberGenerator) -> void:
+    if not player.has("age"):
+        player["age"] = rng.randi_range(22, 31)
+    if not player.has("potential"):
+        var age: int = int(player["age"])
+        var headroom: int = maxi(0, 28 - age) * 4 + 4
+        var potential: Dictionary = {}
+        for key in STAT_KEYS:
+            potential[key] = clampi(int(player[key]) + rng.randi_range(0, headroom), int(player[key]), 99)
+        player["potential"] = potential
+    if not player.has("origin"):
+        player["origin"] = "original"
+    if not player.has("loyalty"):
+        player["loyalty"] = 1.0
+
+static func slot_bias_for_type(slot_type: String) -> Array:
+    for i in range(SLOT_TYPES.size()):
+        if SLOT_TYPES[i] == slot_type:
+            return SLOT_BIAS[i]
+    return [0, 0, 0, 0]
+
+static func random_name(rng: RandomNumberGenerator) -> String:
+    return "%s %s" % [FIRST_NAMES[rng.randi_range(0, FIRST_NAMES.size() - 1)], LAST_NAMES[rng.randi_range(0, LAST_NAMES.size() - 1)]]
+
+static func generate_rookie(slot_type: String, ceiling_low: int, ceiling_high: int, rng: RandomNumberGenerator) -> Dictionary:
+    var bias: Array = slot_bias_for_type(slot_type)
+    var base: int = rng.randi_range(42, 56)
+    var target: int = rng.randi_range(ceiling_low, ceiling_high)
+    var player: Dictionary = {"name": random_name(rng)}
+    var potential: Dictionary = {}
+    for k in range(STAT_KEYS.size()):
+        var value: int = clampi(base + int(bias[k]) + rng.randi_range(-6, 6), 25, 90)
+        player[STAT_KEYS[k]] = value
+        potential[STAT_KEYS[k]] = clampi(target + int(bias[k]) + rng.randi_range(-6, 6), value, 99)
+    player["potential"] = potential
+    player["age"] = rng.randi_range(20, 22)
+    player["origin"] = "drafted"
+    player["loyalty"] = 1.0
+    player["slot_type"] = slot_type
+    player["grade"] = scout_grade(potential_average(player) + rng.randi_range(-4, 4))
+    return player
+
+static func generate_journeyman(slot_type: String, rng: RandomNumberGenerator) -> Dictionary:
+    var bias: Array = slot_bias_for_type(slot_type)
+    var base: int = rng.randi_range(44, 54)
+    var player: Dictionary = {"name": random_name(rng)}
+    var potential: Dictionary = {}
+    for k in range(STAT_KEYS.size()):
+        var value: int = clampi(base + int(bias[k]) + rng.randi_range(-5, 5), 25, 90)
+        player[STAT_KEYS[k]] = value
+        potential[STAT_KEYS[k]] = clampi(value + rng.randi_range(0, 4), value, 99)
+    player["potential"] = potential
+    player["age"] = rng.randi_range(27, 30)
+    player["origin"] = "free agent"
+    player["loyalty"] = 1.0
+    return player
+
+static func potential_average(player: Dictionary) -> int:
+    if not player.has("potential"):
+        return player_overall(player)
+    var potential: Dictionary = player["potential"]
+    var total: int = 0
+    for key in STAT_KEYS:
+        total += int(potential[key])
+    return int(round(float(total) / float(STAT_KEYS.size())))
+
+static func scout_grade(value: int) -> String:
+    if value >= 85:
+        return "A+"
+    if value >= 78:
+        return "A"
+    if value >= 70:
+        return "B"
+    if value >= 62:
+        return "C"
+    return "D"
+
 static func player_overall(player: Dictionary) -> int:
     var total: int = 0
     for key in ["speed", "power", "skill", "awareness"]:
