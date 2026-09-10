@@ -4,8 +4,8 @@ Godot 4.3 / GDScript. "Risk with football teams": twelve empires on a territory 
 
 ## Branch and workflow
 
-- Work on branch `claude/gameplay-ideas-kn5bbo` (all prior work is there). Commit with clear messages; push with `git push -u origin <branch>`.
-- No editor is available in the remote session. **Verify with the headless harnesses** (below) before claiming anything works. Visual layout has never been checked by eye — say so when you touch UI.
+- Work on whichever branch this session is assigned. Commit with clear messages; push with `git push -u origin <branch>`. PRs here get merged quickly (often within the same session that opens them) — if you go to push follow-up work and find your branch's PR already merged, merge the latest default branch into your branch (or restart it from the default branch, keeping any commits that aren't in it yet) before pushing again, then open a fresh PR. This has come up in nearly every session; don't stack new commits on already-merged history.
+- No editor is available in the remote session. **Verify with the headless harnesses** (below) before claiming anything works. When you need to see the UI, export the Web build (`godot --headless --path . --export-release "Web" build/web/index.html`, needs the matching export templates — `curl` them from the GitHub release if `.godot-bin`'s Godot install doesn't have them) and drive it with a headless Chromium: it's a single `<canvas>` (no DOM to select against), so click/drag by pixel coordinate against screenshots rather than CSS selectors. This has been the only way to actually confirm UI/UX changes in this environment — use it rather than guessing from code.
 
 ## Verification
 
@@ -47,7 +47,7 @@ Add a harness when you add a system; extend the nearest one when you change rule
 scenes/          main (menu) · map (season) · game (battle) · offseason
 scripts/core/
   game_constants  field geometry (40-yard field, 25 px/yard)
-  battle_settings mode: PLAY / WATCH / AUTO_RESOLVE (static)
+  battle_settings mode: PLAY / WATCH / SIM (default) / AUTO_RESOLVE (static)
   rosters         hand-made Hawks/Forge + generators, stat→physics mappings, careers
   play_book       cards (Slants/Deep/Draw/Screen vs Cover/Blitz/Spy), matchup table, AI calls
   battle_sim      auto-resolve of a whole battle from cards + stats
