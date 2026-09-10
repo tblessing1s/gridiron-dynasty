@@ -4,7 +4,7 @@ Status: draft v1. Supersedes the Phase 1 "single offensive drive" scope in the R
 
 ## 1. One-line pitch
 
-Risk with football teams. Each season, rival empires attack each other's territory in short 5-a-side battles. Win and you capture the territory and raid one of their players. Lose and your season is over, but you draft high. Build a 7-player dynasty over many seasons.
+Risk with football teams. Each season, rival empires attack each other's territory in short 7-a-side battles. Win and you capture the territory and raid one of their players. Lose and your season is over, but you draft high. Build a 7-player dynasty over many seasons.
 
 ## 2. Design pillars
 
@@ -70,7 +70,7 @@ Capitals are kept. Outer territories return to neutral, except that the season w
 
 ## 5. The battle: Border War
 
-The battle is 5-a-side football on a short field. The line of scrimmage is the frontier between the two empires; a **border bar** across the top of the screen shows it as a tug-of-war over the contested territory.
+The battle is 7-a-side football on a short field. The line of scrimmage is the frontier between the two empires; a **border bar** across the top of the screen shows it as a tug-of-war over the contested territory.
 
 ### 5.1 Format
 
@@ -151,7 +151,7 @@ Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are 
 
 ### 6.1 Roster
 
-Exactly **7 players**: 5 starters plus 2 bench. Everyone plays both ways.
+**7 starters**, everyone playing both ways. Whether the roster carries bench players beyond the seven is an open question (see section 13); the test build fields exactly seven.
 
 | Slot | Offense | Defense | Key stats |
 |---|---|---|---|
@@ -160,8 +160,10 @@ Exactly **7 players**: 5 starters plus 2 bench. Everyone plays both ways.
 | 3 | WR | Cornerback | Speed, Skill |
 | 4 | WR | Cornerback | Speed, Skill |
 | 5 | Blocker | Rusher | Power, Awareness |
-| 6 | Bench | | any |
-| 7 | Bench | | any |
+| 6 | Blocker | Rusher | Power, Awareness |
+| 7 | Blocker | Rusher | Power, Awareness |
+
+Three linemen a side make the pocket a real contest: each rusher fights his own blocker, and the pocket lasts until the first one wins.
 
 Bench players sub in for fatigued starters. There are no injuries; fatigue is the only wear mechanic, so a thin bench means tired starters, never an empty slot.
 
@@ -313,3 +315,4 @@ Each phase is playable on its own.
 - Money: is the contract system worth the complexity, or is aging alone enough to break up super-teams?
 - Whether AI empires should raid each other with the same rules (yes by default; makes the league evolve without the player).
 - Number of empires (12) vs. session length target (30–60 min per season).
+- Bench: with seven starters, does the roster stay at exactly seven (fatigue has no relief; every raid costs a starter), or grow to nine with two bench spots? Affects protection math in 7.2.

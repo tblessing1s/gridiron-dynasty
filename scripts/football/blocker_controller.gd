@@ -2,6 +2,7 @@ extends "res://scripts/football/player_body.gd"
 
 var hold_position: Vector2 = Vector2.ZERO
 var lead_target = null
+var lead_offset: Vector2 = Vector2(38.0, 0.0)
 var block_speed: float = 170.0
 
 func _ready() -> void:
@@ -23,7 +24,7 @@ func lead_for(carrier) -> void:
 func _physics_process(_delta: float) -> void:
     var target: Vector2 = hold_position
     if lead_target != null and is_instance_valid(lead_target):
-        target = lead_target.global_position + Vector2(38.0, 0.0)
+        target = lead_target.global_position + lead_offset
         target.x = maxf(target.x, global_position.x - 10.0)
     var difference: Vector2 = target - global_position
     if difference.length() > 4.0:

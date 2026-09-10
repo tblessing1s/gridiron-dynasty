@@ -44,7 +44,7 @@ func _build_ui() -> void:
     column.add_child(subtitle_label)
 
     var rules: Label = Label.new()
-    rules.text = "5-a-side • 3 possessions each • 4 downs, no kicks • sudden death if tied"
+    rules.text = "7-a-side • 3 possessions each • 4 downs, no kicks • sudden death if tied"
     rules.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     rules.add_theme_font_size_override("font_size", 16)
     rules.modulate = Color(1, 1, 1, 0.75)

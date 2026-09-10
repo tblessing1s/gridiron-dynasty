@@ -2,8 +2,11 @@ extends RefCounted
 
 const GameConstants = preload("res://scripts/core/game_constants.gd")
 
-# Two hard-coded 5-man lineups for testing the battle. Everyone plays both
-# ways: slot order is QB/S, RB/LB, WR/CB, WR/CB, BL/X.
+# Two hard-coded 7-man lineups for testing the battle. Everyone plays both
+# ways: slot order is QB/S, RB/LB, WR/CB, WR/CB, then three BL/X linemen.
+
+const LINE_START: int = 4
+const LINE_SIZE: int = 3
 
 static func hawks() -> Dictionary:
     return {
@@ -15,7 +18,9 @@ static func hawks() -> Dictionary:
             _player("Okafor", 79, 70, 50, 55),
             _player("Reyes", 84, 45, 70, 60),
             _player("Cross", 72, 50, 77, 62),
+            _player("Turner", 38, 79, 40, 58),
             _player("Voss", 40, 83, 45, 66),
+            _player("Mbeki", 44, 77, 42, 60),
         ],
     }
 
@@ -29,9 +34,17 @@ static func forge() -> Dictionary:
             _player("Pike", 75, 72, 48, 50),
             _player("Lund", 80, 44, 72, 58),
             _player("Amari", 70, 48, 74, 60),
+            _player("Holt", 40, 81, 38, 55),
             _player("Grange", 42, 88, 40, 62),
+            _player("Dace", 45, 76, 44, 57),
         ],
     }
+
+static func line_power(players: Array) -> float:
+    var total: float = 0.0
+    for i in range(LINE_START, LINE_START + LINE_SIZE):
+        total += float(int(players[i].get("power", 50)))
+    return total / float(LINE_SIZE)
 
 static func _player(player_name: String, speed: int, power: int, skill: int, awareness: int) -> Dictionary:
     return {"name": player_name, "speed": speed, "power": power, "skill": skill, "awareness": awareness}

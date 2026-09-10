@@ -14,7 +14,7 @@ const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
 
-# Border War battle: 5-a-side, three possessions each, four downs, no kicks.
+# Border War battle: 7-a-side, three possessions each, four downs, no kicks.
 # The user always calls the plays. In PLAY mode they also throw the ball on
 # their own passing plays; runs, the run after the catch, and the defense all
 # play themselves.
@@ -27,6 +27,8 @@ const AUTO_SNAP_DELAY: float = 0.8
 const SCREEN_RELEASE_SECONDS: float = 0.45
 const DRAW_HANDOFF_SECONDS: float = 0.35
 const CENTER_Y: float = (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5
+const LINE_SPACING: float = 46.0
+const DEFENDER_COUNT: int = 4 + Rosters.LINE_SIZE
 
 var state: int = PlayState.CALLING
 var mode: int = BattleSettings.Mode.PLAY
@@ -38,7 +40,7 @@ var scoreboard
 var camera: Camera2D
 var qb
 var running_back
-var blocker
+var blockers: Array = []
 var receivers: Array = []
 var catchers: Array = []
 var defenders: Array = []
@@ -105,8 +107,11 @@ func _build_world() -> void:
     qb.aim_cancelled.connect(_on_aim_cancelled)
     world_view.add_child(qb)
 
-    blocker = BlockerScript.new()
-    world_view.add_child(blocker)
+    for i in range(Rosters.LINE_SIZE):
+        var lineman = BlockerScript.new()
+        lineman.lead_offset = Vector2(38.0, _line_offset_y(i))
+        world_view.add_child(lineman)
+        blockers.append(lineman)
 
     for i in range(2):
         var receiver = ReceiverScript.new()
@@ -122,7 +127,7 @@ func _build_world() -> void:
 
     catchers = [receivers[0], receivers[1], running_back]
 
-    for i in range(5):
+    for i in range(DEFENDER_COUNT):
         var defender = DefenderScript.new()
         world_view.add_child(defender)
         defenders.append(defender)
@@ -199,11 +204,15 @@ func _assign_teams() -> void:
     receivers[0].set_team_color(offense_color)
     receivers[1].apply_stats(offense_players[3])
     receivers[1].set_team_color(offense_color)
-    blocker.apply_stats(offense_players[4])
-    blocker.set_team_color(offense_color)
+    for i in range(blockers.size()):
+        blockers[i].apply_stats(offense_players[Rosters.LINE_START + i])
+        blockers[i].set_team_color(offense_color)
 
-    var roles: Array[int] = [DefenderScript.Role.SAFETY, DefenderScript.Role.LINEBACKER, DefenderScript.Role.CORNER, DefenderScript.Role.CORNER, DefenderScript.Role.RUSHER]
-    var labels: Array[String] = ["S", "LB", "CB", "CB", "X"]
+    var roles: Array[int] = [DefenderScript.Role.SAFETY, DefenderScript.Role.LINEBACKER, DefenderScript.Role.CORNER, DefenderScript.Role.CORNER]
+    var labels: Array[String] = ["S", "LB", "CB", "CB"]
+    for i in range(Rosters.LINE_SIZE):
+        roles.append(DefenderScript.Role.RUSHER)
+        labels.append("X")
     for i in range(defenders.size()):
         var defender = defenders[i]
         defender.role = roles[i]
@@ -211,11 +220,14 @@ func _assign_teams() -> void:
         defender.apply_stats(defense_players[i])
         defender.set_team_color(defense_color)
         defender.quarterback = qb
-        defender.blocker = blocker
+        defender.blockers = blockers
+        defender.blocker = blockers[1]
         defender.spy_target = running_back
         defender.receivers = catchers
     defenders[2].covered_receiver = receivers[0]
     defenders[3].covered_receiver = receivers[1]
+    for i in range(Rosters.LINE_SIZE):
+        _rusher(i).blocker = blockers[i]
 
     for catcher in catchers:
         catcher.defenders = defenders
@@ -238,15 +250,16 @@ func _prepare_play(message: String = "") -> void:
 
     var los: float = line_of_scrimmage_x
     qb.reset_for_play(Vector2(los - 55.0, CENTER_Y))
-    blocker.reset_for_play(Vector2(los - 22.0, CENTER_Y))
     running_back.reset_for_play(Vector2(los - 100.0, CENTER_Y + 40.0))
     receivers[0].reset_for_play(Vector2(los - 4.0, 245.0))
     receivers[1].reset_for_play(Vector2(los - 4.0, 540.0))
     defenders[0].reset_for_play(Vector2(los + 170.0, CENTER_Y))
-    defenders[1].reset_for_play(Vector2(los + 70.0, CENTER_Y))
+    defenders[1].reset_for_play(Vector2(los + 95.0, CENTER_Y))
     defenders[2].reset_for_play(Vector2(los + 55.0, 245.0))
     defenders[3].reset_for_play(Vector2(los + 55.0, 540.0))
-    defenders[4].reset_for_play(Vector2(los + 22.0, CENTER_Y))
+    for i in range(Rosters.LINE_SIZE):
+        blockers[i].reset_for_play(Vector2(los - 22.0, CENTER_Y + _line_offset_y(i)))
+        _rusher(i).reset_for_play(Vector2(los + 22.0, CENTER_Y + _line_offset_y(i)))
     for defender in defenders:
         defender.line_x = los
 
@@ -309,18 +322,23 @@ func _on_card_selected(index: int) -> void:
         scoreboard.set_message("%s called • snapping…" % called)
 
 func _setup_formation() -> void:
-    var pocket: float = Rosters.pocket_seconds(blocker.stat("power"), defenders[4].stat("power"))
+    # Each rusher fights his own blocker; the pocket lasts until the first
+    # one wins his matchup.
+    var shortest_pocket: float = INF
+    for i in range(Rosters.LINE_SIZE):
+        var pocket: float = Rosters.pocket_seconds(blockers[i].stat("power"), _rusher(i).stat("power"))
+        _rusher(i).pocket_seconds = pocket
+        shortest_pocket = minf(shortest_pocket, pocket)
     for defender in defenders:
         defender.assignment = defense_card
-        defender.pocket_seconds = pocket
         defender.offset_scale = 1.0
+    defenders[1].pocket_seconds = shortest_pocket * 0.6 + 0.3
     if defense_card == PlayBook.Defense.COVER:
         defenders[2].offset_scale = 0.7
         defenders[3].offset_scale = 0.7
     elif defense_card == PlayBook.Defense.BLITZ:
         defenders[2].offset_scale = 1.8
         defenders[3].offset_scale = 1.8
-        defenders[1].pocket_seconds = pocket * 0.6 + 0.3
     field.set_route_previews(_build_routes())
     ai_decision_seconds = Rosters.decision_seconds(qb.stat("awareness"))
 
@@ -368,13 +386,14 @@ func _snap() -> void:
     for defender in defenders:
         defender.set_ai_enabled(true)
     scoreboard.set_read("")
-    scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], defenders[4].pocket_seconds])
+    scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], _shortest_pocket()])
 
 func _handoff(carrier) -> void:
     current_carrier = carrier
     carrier.become_ball_carrier()
     tackle_grace_seconds = 0.45
-    blocker.lead_for(carrier)
+    for lineman in blockers:
+        lineman.lead_for(carrier)
     for defender in defenders:
         defender.set_ball_carrier(carrier)
     qb.can_throw = false
@@ -559,7 +578,8 @@ func _on_pass_caught(receiver) -> void:
     for catcher in catchers:
         if catcher != receiver:
             catcher.stop_route()
-    blocker.lead_for(receiver)
+    for lineman in blockers:
+        lineman.lead_for(receiver)
     for defender in defenders:
         defender.set_ball_carrier(receiver)
     var steer_hint: String = " • drag to steer" if _user_controls_offense() else ""
@@ -666,7 +686,8 @@ func _freeze_players() -> void:
         catcher.stop_route()
         catcher.is_ball_carrier = false
         catcher.velocity = Vector2.ZERO
-    blocker.lead_for(null)
+    for lineman in blockers:
+        lineman.lead_for(null)
     for defender in defenders:
         defender.set_ai_enabled(false)
         defender.ball_carrier = null
@@ -680,6 +701,18 @@ func _freeze_players() -> void:
 
 func _user_on_offense() -> bool:
     return offense_team == USER_TEAM
+
+func _rusher(index: int):
+    return defenders[4 + index]
+
+func _line_offset_y(index: int) -> float:
+    return (float(index) - float(Rosters.LINE_SIZE - 1) * 0.5) * LINE_SPACING
+
+func _shortest_pocket() -> float:
+    var shortest: float = INF
+    for i in range(Rosters.LINE_SIZE):
+        shortest = minf(shortest, _rusher(i).pocket_seconds)
+    return shortest
 
 func _user_controls_offense() -> bool:
     return _user_on_offense() and mode == BattleSettings.Mode.PLAY

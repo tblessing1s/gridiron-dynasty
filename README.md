@@ -25,7 +25,7 @@ No franchise, player-development, save, draft, coaching, or league systems are i
 
 ## Border War battle test build
 
-The current build replaces the single drive with one **Border War** battle between the Harbor Hawks and the Ironvale Forge: 5-a-side on a 40-yard field, three possessions each, four downs with no punts or kicks, sudden death if tied. Every player has four stats (Speed, Power, Skill, Awareness) that drive route speed, pocket time, catch radius, interception radius, break-tackle odds, and pre-snap reads. The full design is in `docs/DESIGN.md`.
+The current build replaces the single drive with one **Border War** battle between the Harbor Hawks and the Ironvale Forge: 7-a-side (QB, RB, two receivers, three linemen) on a 40-yard field, three possessions each, four downs with no punts or kicks, sudden death if tied. Every player has four stats (Speed, Power, Skill, Awareness) that drive route speed, pocket time, catch radius, interception radius, break-tackle odds, and pre-snap reads. The full design is in `docs/DESIGN.md`.
 
 The main menu offers three ways to play the same battle, for testing which one feels right:
 

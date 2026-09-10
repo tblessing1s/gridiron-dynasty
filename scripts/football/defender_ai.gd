@@ -12,6 +12,7 @@ var assignment: int = Assignment.COVER
 var covered_receiver = null
 var spy_target = null
 var blocker = null
+var blockers: Array = []
 var quarterback = null
 var ball_carrier = null
 var watched_football = null
@@ -106,9 +107,11 @@ func _physics_process(delta: float) -> void:
         target = _coverage_point()
 
     # A blocker standing on top of a defender slows him badly; there are no
-    # collisions, so this is what makes the blocker matter.
-    if blocker != null and is_instance_valid(blocker) and blocker.global_position.distance_to(global_position) <= BLOCK_RADIUS:
-        speed *= 0.3
+    # collisions, so this is what makes the line matter.
+    for candidate in blockers:
+        if is_instance_valid(candidate) and candidate.global_position.distance_to(global_position) <= BLOCK_RADIUS:
+            speed *= 0.3
+            break
 
     var difference: Vector2 = target - global_position
     if difference.length() > 3.0:
