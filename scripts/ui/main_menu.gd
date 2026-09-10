@@ -62,6 +62,7 @@ func _build_ui() -> void:
     column.add_child(mode_row)
     _add_mode_button(mode_row, "PLAY", "throw it yourself", BattleSettings.Mode.PLAY)
     _add_mode_button(mode_row, "WATCH", "call plays, watch", BattleSettings.Mode.WATCH)
+    _add_mode_button(mode_row, "SIM", "call plays, instant sim", BattleSettings.Mode.SIM)
     _add_mode_button(mode_row, "AUTO", "box score only", BattleSettings.Mode.AUTO_RESOLVE)
 
     var spacer: Control = Control.new()
@@ -91,8 +92,8 @@ func _build_ui() -> void:
 func _add_mode_button(row: HBoxContainer, title: String, hint: String, mode: int) -> void:
     var button: Button = Button.new()
     button.text = "%s\n%s" % [title, hint]
-    button.custom_minimum_size = Vector2(200, 60)
-    button.add_theme_font_size_override("font_size", 16)
+    button.custom_minimum_size = Vector2(160, 60)
+    button.add_theme_font_size_override("font_size", 15)
     button.toggle_mode = true
     button.pressed.connect(_on_mode_pressed.bind(mode))
     row.add_child(button)

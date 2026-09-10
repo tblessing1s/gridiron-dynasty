@@ -86,6 +86,7 @@ func _physics_process(_delta: float) -> bool:
             # Try an illegal give first to prove it is rejected.
             rs._on_give_pressed(6 if take != 6 else 0)
         else:
+            assert(rs.take_index >= 0 and rs.give_index >= 0, "AI could not find a raid target in quick battle")
             print("--- RAID (AI): ", rs.summary_label.text)
         rs._on_confirm_pressed()
         return false

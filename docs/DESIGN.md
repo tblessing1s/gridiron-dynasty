@@ -124,9 +124,10 @@ The throw is the only moment where a human choice beats the AI, so it is the onl
 |---|---|---|
 | Play | call the card, throw the ball (slingshot: pull away from the target, release) | call the card, watch |
 | Watch | call the card, AI throws | call the card, watch |
+| Sim | call the card, down resolves instantly with the same card/stat math as auto-resolve — no snap/pocket/throw animation | call the card, down resolves instantly |
 | Auto-resolve | whole battle simulated with the same cards and stats; box score only | — |
 
-Draw and Screen are automatic in every mode. Steering the runner is optional in Play mode.
+Draw and Screen are automatic in every mode. Steering the runner is optional in Play mode. Sim exists as a fallback for when the real-time engine (5.4/5.5) isn't behaving well: it keeps every down-by-down decision (cards, tagging, stakes) but removes the physics step, unlike Auto-resolve which removes per-down control entirely.
 
 ### 5.7 Play-call matrix
 
