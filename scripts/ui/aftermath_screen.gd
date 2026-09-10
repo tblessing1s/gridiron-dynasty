@@ -16,7 +16,7 @@ func _ready() -> void:
     layer = 110
 
 # xp_report: Array of {team, index, gains} entries, already applied.
-func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, log: Array, xp_report: Array, user_stats: Array, auto_resolved: bool) -> void:
+func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, log: Array, xp_report: Array, user_stats: Array, auto_resolved: bool, subtitle_text: String) -> void:
     if root != null:
         root.queue_free()
     root = Control.new()
@@ -38,7 +38,7 @@ func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, lo
     root.add_child(title)
 
     var subtitle: Label = _label(Vector2(0, 58), Vector2(1280, 26), 18)
-    subtitle.text = "Territory captured" if user_won else "Border territory lost"
+    subtitle.text = subtitle_text
     subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     subtitle.modulate = Color(winner["color"].lightened(0.35), 1.0)
     root.add_child(subtitle)

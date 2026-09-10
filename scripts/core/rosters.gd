@@ -51,6 +51,61 @@ static func line_power(players: Array) -> float:
 static func _player(player_name: String, speed: int, power: int, skill: int, awareness: int) -> Dictionary:
     return {"name": player_name, "speed": speed, "power": power, "skill": skill, "awareness": awareness}
 
+const FIRST_NAMES: Array[String] = ["Ade", "Bram", "Cal", "Dev", "Eli", "Finn", "Gus", "Hal", "Ike", "Jory", "Kai", "Lev", "Mose", "Nico", "Oz", "Pax", "Quin", "Rafe", "Sol", "Tam", "Ugo", "Vic", "Wes", "Zane"]
+const LAST_NAMES: Array[String] = ["Adair", "Boone", "Calder", "Dray", "Ellis", "Farrow", "Gale", "Hardy", "Ivers", "Jett", "Kerr", "Lowe", "Marr", "Nash", "Orde", "Pryce", "Quill", "Rook", "Slade", "Tully", "Usher", "Vane", "Wick", "York"]
+
+# Slot biases on top of a team rating: index order QB, RB, WR, WR, BL, BL, BL;
+# values are speed, power, skill, awareness.
+const SLOT_BIAS: Array = [
+    [-8, -8, 12, 8],
+    [8, 6, -8, -2],
+    [10, -10, 4, 0],
+    [10, -10, 4, 0],
+    [-14, 14, -10, 0],
+    [-14, 14, -10, 0],
+    [-14, 14, -10, 0],
+]
+
+static func generate_players(rating: int, rng: RandomNumberGenerator) -> Array:
+    var players: Array = []
+    for i in range(SLOT_TYPES.size()):
+        var bias: Array = SLOT_BIAS[i]
+        var player_name: String = "%s %s" % [FIRST_NAMES[rng.randi_range(0, FIRST_NAMES.size() - 1)], LAST_NAMES[rng.randi_range(0, LAST_NAMES.size() - 1)]]
+        players.append(_player(
+            player_name,
+            clampi(rating + int(bias[0]) + rng.randi_range(-8, 8), 30, 95),
+            clampi(rating + int(bias[1]) + rng.randi_range(-8, 8), 30, 95),
+            clampi(rating + int(bias[2]) + rng.randi_range(-8, 8), 30, 95),
+            clampi(rating + int(bias[3]) + rng.randi_range(-8, 8), 30, 95)
+        ))
+    return players
+
+static func player_overall(player: Dictionary) -> int:
+    var total: int = 0
+    for key in ["speed", "power", "skill", "awareness"]:
+        total += int(player[key])
+    return int(round(float(total) / 4.0))
+
+static func team_overall(team: Dictionary) -> int:
+    var players: Array = team["players"]
+    if players.is_empty():
+        return 0
+    var total: int = 0
+    for player in players:
+        total += player_overall(player)
+    return int(round(float(total) / float(players.size())))
+
+static func best_player_index(team: Dictionary) -> int:
+    var players: Array = team["players"]
+    var best: int = 0
+    var best_overall: int = -1
+    for i in range(players.size()):
+        var overall: int = player_overall(players[i])
+        if overall > best_overall:
+            best_overall = overall
+            best = i
+    return best
+
 # Stat-to-physics mappings. Kept together so tuning happens in one place.
 
 static func pocket_seconds(block_power: int, rush_power: int) -> float:

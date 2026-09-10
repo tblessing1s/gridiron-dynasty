@@ -2,6 +2,7 @@ extends Node2D
 
 const GameConstants = preload("res://scripts/core/game_constants.gd")
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
+const SeasonState = preload("res://scripts/core/season_state.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 const PlayBook = preload("res://scripts/core/play_book.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
@@ -50,6 +51,10 @@ var aftermath_screen
 var raid_screen
 var franchise_tag_index: int = -1
 var ai_tag_index: int = -1
+var season_mode: bool = false
+var season_reported: bool = false
+var attacker_team: int = 0
+var context: Dictionary = {}
 var battle_stats: Array = [[], []]
 var auto_resolved: bool = false
 var last_user_won: bool = false
@@ -91,11 +96,40 @@ var ai_decision_seconds: float = 1.2
 func _ready() -> void:
     rng.randomize()
     mode = BattleSettings.mode
-    teams = [Rosters.hawks(), Rosters.forge()]
+    _load_teams()
     _build_world()
     scoreboard.set_mode_text("%s MODE" % BattleSettings.mode_name(mode))
     scoreboard.setup_border(teams[0], teams[1])
     _show_matchup()
+
+# In a season the battle comes from the map: the user's empire against the
+# other side of the pending battle, attacker decided by the map. Otherwise
+# it is the quick battle, Hawks attacking Forge.
+func _load_teams() -> void:
+    var battle: Dictionary = SeasonState.battle
+    if not battle.is_empty() and SeasonState.season != null:
+        var season = SeasonState.season
+        var attacker_id: int = int(battle["attacker"])
+        var defender_id: int = int(battle["defender"])
+        var user_is_attacker: bool = attacker_id == season.USER_EMPIRE
+        var opponent: Dictionary = season.empire(defender_id if user_is_attacker else attacker_id)
+        var target: Dictionary = season.territory(int(battle["territory"]))
+        var origin_id: int = int(battle["origin"])
+        season_mode = true
+        teams = [season.user(), opponent]
+        attacker_team = 0 if user_is_attacker else 1
+        context = {
+            "territory": target["name"],
+            "origin": season.territory(origin_id)["name"] if origin_id >= 0 else "your border",
+            "user_is_attacker": user_is_attacker,
+            "target_is_capital": bool(target["is_capital"]),
+            "origin_is_capital": origin_id >= 0 and bool(season.territory(origin_id)["is_capital"]),
+        }
+    else:
+        season_mode = false
+        teams = [Rosters.hawks(), Rosters.forge()]
+        attacker_team = 0
+        context = {"territory": "Ironvale", "origin": "Harbor Point", "user_is_attacker": true, "target_is_capital": false, "origin_is_capital": false}
 
 func _show_matchup() -> void:
     state = PlayState.BATTLE_OVER
@@ -103,9 +137,14 @@ func _show_matchup() -> void:
     scoreboard.visible = false
     aftermath_screen.visible = false
     raid_screen.visible = false
-    franchise_tag_index = -1
-    ai_tag_index = _best_player_index(teams[1])
-    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER, ai_tag_index)
+    season_reported = false
+    franchise_tag_index = int(teams[0].get("tag_index", -1))
+    ai_tag_index = int(teams[1].get("tag_index", -1))
+    if ai_tag_index < 0:
+        ai_tag_index = _best_player_index(teams[1])
+        if season_mode:
+            teams[1]["tag_index"] = ai_tag_index
+    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER, ai_tag_index, context, franchise_tag_index if season_mode else -1)
     matchup_screen.visible = true
 
 func _show_aftermath() -> void:
@@ -123,16 +162,30 @@ func _show_aftermath() -> void:
                     continue
                 BattleXp.apply(players[i], gains)
                 xp_report.append({"team": team_index, "index": i, "gains": gains})
-    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved)
+    var subtitle: String = "Territory captured" if last_user_won else "Border territory lost"
+    if season_mode and not season_reported:
+        season_reported = true
+        SeasonState.season.complete_user_battle(last_user_won)
+        SeasonState.battle = {}
+        if not SeasonState.season.log.is_empty():
+            subtitle = str(SeasonState.season.log[0])
+    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved, subtitle)
     aftermath_screen.visible = true
 
 func _show_raid() -> void:
     aftermath_screen.visible = false
+    var after_text: String = "BACK TO MAP" if season_mode else "PLAY AGAIN"
     if last_user_won:
-        raid_screen.setup(teams[0], teams[1], ai_tag_index, true)
+        raid_screen.setup(teams[0], teams[1], ai_tag_index, true, after_text)
     else:
-        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false)
+        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false, after_text)
     raid_screen.visible = true
+
+func _after_raid() -> void:
+    if season_mode:
+        get_tree().change_scene_to_file("res://scenes/map.tscn")
+    else:
+        _show_matchup()
 
 func _on_raid_confirmed(take_index: int, give_index: int) -> void:
     if last_user_won:
@@ -179,6 +232,8 @@ func _on_matchup_auto() -> void:
 
 func _on_tag_changed(index: int) -> void:
     franchise_tag_index = index
+    if season_mode:
+        teams[0]["tag_index"] = index
 
 func _build_world() -> void:
     world_view = Node2D.new()
@@ -266,7 +321,7 @@ func _build_world() -> void:
 
     raid_screen = RaidScreenScript.new()
     raid_screen.raid_confirmed.connect(_on_raid_confirmed)
-    raid_screen.play_again_requested.connect(_show_matchup)
+    raid_screen.play_again_requested.connect(_after_raid)
     raid_screen.menu_requested.connect(_back_to_menu)
     raid_screen.visible = false
     add_child(raid_screen)
@@ -276,18 +331,18 @@ func _build_world() -> void:
 func _start_battle() -> void:
     scores[0] = 0
     scores[1] = 0
-    offense_team = USER_TEAM
+    offense_team = attacker_team
     possession_number = 1
     possession_log.clear()
     auto_resolved = false
     _reset_battle_stats()
     _refresh_score()
-    _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[USER_TEAM]["short"], TOTAL_POSSESSIONS])
+    _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[attacker_team]["short"], TOTAL_POSSESSIONS])
 
 func _auto_resolve() -> void:
-    var result: Dictionary = BattleSim.resolve(teams[0], teams[1], rng)
-    scores[0] = int(result["home_score"])
-    scores[1] = int(result["away_score"])
+    var result: Dictionary = BattleSim.resolve(teams[attacker_team], teams[1 - attacker_team], rng)
+    scores[attacker_team] = int(result["home_score"])
+    scores[1 - attacker_team] = int(result["away_score"])
     _refresh_score()
     scoreboard.update_possession("AUTO-RESOLVED")
     auto_resolved = true
@@ -596,7 +651,7 @@ func _throw_to(receiver) -> void:
 
 func _launch(target: Vector2) -> void:
     var scatter: float = Rosters.scatter_px(qb.stat("skill")) * rng.randf()
-    if _user_on_offense():
+    if offense_team == attacker_team:
         scatter *= HOME_CROWD_SCATTER
     var angle: float = rng.randf() * TAU
     var landing: Vector2 = target + Vector2(cos(angle), sin(angle)) * scatter

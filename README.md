@@ -39,13 +39,23 @@ Every battle opens on a **matchup screen**: both seven-man lineups with stat bar
 
 After the battle, an **aftermath screen** shows the result, the border bar filled to the winner's color, the possession log, the XP each player earned from what they actually did (catches and completions grow Skill, yardage grows Speed, tackles, pocket wins and sacks grow Power, interceptions and touchdowns grow Awareness; capped at +2 per stat per battle), and your team's fatigue. Then the **raid**: if you won, tap any unprotected Forge player to take him and pick one of yours at the same slot to send back; if you lost, the Forge take your best unprotected player and you watch. Both movers arrive with a -5 morale hit to every stat. The franchise tag you set on the matchup screen is the one player they cannot take. Roster changes and XP carry into the next battle for as long as the game scene is open; going back to the main menu resets both teams.
 
-Territory capture is still display-only until the season map exists.
+## Season map
+
+**NEW SEASON** from the main menu opens the map: twelve empires on a 6×4 grid of territories, two each to start (a capital and one outer territory). Each week you tap an adjacent enemy territory (white outline) and **ATTACK**, or **REST**. AI empires plan their own attacks the same week; each empire fights at most one battle per week. Your battle plays in whichever mode you chose on the menu; every AI-vs-AI battle is auto-resolved with the same simulator.
+
+- Win an attack: the territory is yours. If it was their capital, they are eliminated and you absorb everything they held.
+- Lose an attack: the defender takes the territory you attacked from — unless that was your capital, which only falls to a direct attack. Lose your capital and you are out.
+- Every battle ends in a raid, AI ones included. Your franchise tag locks for the season the first time you set it; AI empires tag their best player.
+- XP and raids persist across the season; **CONTINUE SEASON** on the menu resumes it, including a battle you left mid-way.
+- The season ends when one empire is left or after week 12; the largest empire wins. If you are eliminated you can sim the remaining weeks.
+
+Territory resources are labels only for now; the offseason (draft, aging) is not built yet, so a new season starts fresh.
 
 ## Run
 
 1. Open this folder in Godot 4.x.
 2. Run the project (`F6`/`F5`, depending on editor workflow).
-3. Pick a mode on the main menu.
+3. Pick how you play battles (PLAY / WATCH / AUTO), then **NEW SEASON** or **QUICK BATTLE**.
 
 ## Deploy the browser build
 

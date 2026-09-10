@@ -1,9 +1,10 @@
 extends Control
 
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
+const SeasonState = preload("res://scripts/core/season_state.gd")
+const SeasonScript = preload("res://scripts/core/season.gd")
 
-var title_label: Label
-var subtitle_label: Label
+var mode_buttons: Array = []
 
 func _ready() -> void:
     _build_ui()
@@ -15,15 +16,15 @@ func _build_ui() -> void:
     add_child(background)
 
     var panel: PanelContainer = PanelContainer.new()
-    panel.custom_minimum_size = Vector2(760, 560)
-    panel.position = Vector2(260, 70)
+    panel.custom_minimum_size = Vector2(760, 600)
+    panel.position = Vector2(260, 50)
     add_child(panel)
 
     var margin: MarginContainer = MarginContainer.new()
     margin.add_theme_constant_override("margin_left", 42)
     margin.add_theme_constant_override("margin_right", 42)
-    margin.add_theme_constant_override("margin_top", 30)
-    margin.add_theme_constant_override("margin_bottom", 30)
+    margin.add_theme_constant_override("margin_top", 28)
+    margin.add_theme_constant_override("margin_bottom", 28)
     panel.add_child(margin)
 
     var column: VBoxContainer = VBoxContainer.new()
@@ -31,43 +32,67 @@ func _build_ui() -> void:
     column.add_theme_constant_override("separation", 14)
     margin.add_child(column)
 
-    title_label = Label.new()
-    title_label.text = "GRIDIRON DYNASTY"
-    title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    title_label.add_theme_font_size_override("font_size", 42)
-    column.add_child(title_label)
-
-    subtitle_label = Label.new()
-    subtitle_label.text = "BORDER WAR  •  HARBOR HAWKS attack IRONVALE FORGE"
-    subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    subtitle_label.add_theme_font_size_override("font_size", 20)
-    column.add_child(subtitle_label)
+    var title: Label = Label.new()
+    title.text = "GRIDIRON DYNASTY"
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.add_theme_font_size_override("font_size", 42)
+    column.add_child(title)
 
     var rules: Label = Label.new()
-    rules.text = "7-a-side • 3 possessions each • 4 downs, no kicks • sudden death if tied"
+    rules.text = "Twelve empires, one map. Attack a neighbour each week, win the Border War, take their land and raid a player.\n7-a-side • 3 possessions each • 4 downs, no kicks • sudden death if tied"
     rules.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    rules.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     rules.add_theme_font_size_override("font_size", 16)
     rules.modulate = Color(1, 1, 1, 0.75)
     column.add_child(rules)
 
+    var mode_header: Label = Label.new()
+    mode_header.text = "HOW YOU PLAY BATTLES"
+    mode_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    mode_header.add_theme_font_size_override("font_size", 14)
+    mode_header.modulate = Color(1, 1, 1, 0.6)
+    column.add_child(mode_header)
+
+    var mode_row: HBoxContainer = HBoxContainer.new()
+    mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
+    mode_row.add_theme_constant_override("separation", 12)
+    column.add_child(mode_row)
+    _add_mode_button(mode_row, "PLAY", "throw it yourself", BattleSettings.Mode.PLAY)
+    _add_mode_button(mode_row, "WATCH", "call plays, watch", BattleSettings.Mode.WATCH)
+    _add_mode_button(mode_row, "AUTO", "box score only", BattleSettings.Mode.AUTO_RESOLVE)
+
     var spacer: Control = Control.new()
-    spacer.custom_minimum_size = Vector2(0, 10)
+    spacer.custom_minimum_size = Vector2(0, 6)
     column.add_child(spacer)
 
-    _add_mode_button(column, "PLAY", "Call plays, throw the ball yourself. Pull back from the QB to aim, release to throw. Runs and defense play out on their own.", BattleSettings.Mode.PLAY)
-    _add_mode_button(column, "WATCH", "Call every play on both sides, then watch it play out. No throwing.", BattleSettings.Mode.WATCH)
-    _add_mode_button(column, "AUTO-RESOLVE", "Skip the field. The whole battle is simulated with the same rules and you get the box score.", BattleSettings.Mode.AUTO_RESOLVE)
+    if SeasonState.has_season() and not SeasonState.season.over:
+        var week: int = SeasonState.season.week
+        _add_action(column, "CONTINUE SEASON", "Week %d of %d. Pick up where you left off." % [mini(week, SeasonScript.MAX_WEEKS), SeasonScript.MAX_WEEKS], _on_continue_season)
+    _add_action(column, "NEW SEASON", "Start a fresh map with fresh rosters.", _on_new_season)
+    _add_action(column, "QUICK BATTLE", "One Border War, Hawks vs Forge, no map.", _on_quick_battle)
 
-func _add_mode_button(column: VBoxContainer, title: String, description: String, mode: int) -> void:
+    _refresh_mode_buttons()
+
+func _add_mode_button(row: HBoxContainer, title: String, hint: String, mode: int) -> void:
+    var button: Button = Button.new()
+    button.text = "%s\n%s" % [title, hint]
+    button.custom_minimum_size = Vector2(200, 60)
+    button.add_theme_font_size_override("font_size", 16)
+    button.toggle_mode = true
+    button.pressed.connect(_on_mode_pressed.bind(mode))
+    row.add_child(button)
+    mode_buttons.append({"button": button, "mode": mode})
+
+func _add_action(column: VBoxContainer, title: String, description: String, handler: Callable) -> void:
     var row: HBoxContainer = HBoxContainer.new()
     row.add_theme_constant_override("separation", 18)
     column.add_child(row)
 
     var button: Button = Button.new()
     button.text = title
-    button.custom_minimum_size = Vector2(220, 64)
-    button.add_theme_font_size_override("font_size", 22)
-    button.pressed.connect(_on_mode_pressed.bind(mode))
+    button.custom_minimum_size = Vector2(240, 56)
+    button.add_theme_font_size_override("font_size", 20)
+    button.pressed.connect(handler)
     row.add_child(button)
 
     var label: Label = Label.new()
@@ -75,9 +100,26 @@ func _add_mode_button(column: VBoxContainer, title: String, description: String,
     label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-    label.add_theme_font_size_override("font_size", 16)
+    label.add_theme_font_size_override("font_size", 15)
     row.add_child(label)
 
 func _on_mode_pressed(mode: int) -> void:
     BattleSettings.mode = mode
+    _refresh_mode_buttons()
+
+func _refresh_mode_buttons() -> void:
+    for entry in mode_buttons:
+        var button: Button = entry["button"]
+        button.button_pressed = int(entry["mode"]) == BattleSettings.mode
+
+func _on_continue_season() -> void:
+    get_tree().change_scene_to_file("res://scenes/map.tscn")
+
+func _on_new_season() -> void:
+    SeasonState.season = SeasonScript.new()
+    SeasonState.battle = {}
+    get_tree().change_scene_to_file("res://scenes/map.tscn")
+
+func _on_quick_battle() -> void:
+    SeasonState.battle = {}
     get_tree().change_scene_to_file("res://scenes/game.tscn")

@@ -20,11 +20,16 @@ var root: Control
 func _ready() -> void:
     layer = 110
 
-func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: float, away_tag_index: int) -> void:
+# context: territory (String), origin (String), user_is_attacker (bool),
+# target_is_capital (bool), origin_is_capital (bool).
+func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: float, away_tag_index: int, context: Dictionary, locked_tag_index: int) -> void:
     if root != null:
         root.queue_free()
     tag_buttons.clear()
-    tag_index = -1
+    tag_index = locked_tag_index
+    var user_is_attacker: bool = bool(context.get("user_is_attacker", true))
+    var territory: String = str(context.get("territory", "their territory"))
+    var origin: String = str(context.get("origin", "your border territory"))
 
     root = Control.new()
     root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -47,11 +52,24 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
     subtitle.position = Vector2(0, 62)
     subtitle.size = Vector2(1280, 36)
     subtitle.add_theme_font_size_override("normal_font_size", 22)
-    subtitle.text = "[center][color=#%s]%s[/color] attack [color=#%s]%s[/color][/center]" % [home["color"].to_html(false), home["name"], away["color"].to_html(false), away["name"]]
+    var attacker: Dictionary = home if user_is_attacker else away
+    var defender: Dictionary = away if user_is_attacker else home
+    subtitle.text = "[center][color=#%s]%s[/color] attack [color=#%s]%s[/color] at %s[/center]" % [attacker["color"].to_html(false), attacker["name"], defender["color"].to_html(false), defender["name"], territory]
     root.add_child(subtitle)
 
-    var stakes: Label = _label(Vector2(140, 104), Vector2(1000, 30), 18)
-    stakes.text = "WIN: capture their territory and raid one %s player      LOSE: lose your border territory and get raided" % away["short"]
+    var stakes: Label = _label(Vector2(100, 104), Vector2(1080, 30), 18)
+    var capital_warning: String = ""
+    if user_is_attacker:
+        if bool(context.get("target_is_capital", false)):
+            capital_warning = " — their capital, they are eliminated"
+        if bool(context.get("origin_is_capital", false)):
+            stakes.text = "WIN: capture %s%s and raid one %s player      LOSE: get raided (your capital holds)" % [territory, capital_warning, away["short"]]
+        else:
+            stakes.text = "WIN: capture %s%s and raid one %s player      LOSE: lose %s and get raided" % [territory, capital_warning, away["short"], origin]
+    else:
+        if bool(context.get("target_is_capital", false)):
+            capital_warning = " — YOUR CAPITAL, you are eliminated"
+        stakes.text = "WIN: hold %s, take %s and raid one %s player      LOSE: lose %s%s and get raided" % [territory, origin, away["short"], territory, capital_warning]
     stakes.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     stakes.modulate = Color(1, 1, 1, 0.85)
     root.add_child(stakes)
@@ -65,11 +83,11 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
     chips.add_child(_chip("Home crowd: %s throw scatter +%d%%" % [home["short"], int(round((home_crowd_penalty - 1.0) * 100.0))]))
     chips.add_child(_chip(_weak_spot_text(home, away)))
 
-    _add_column(40.0, "YOUR SEVEN", home, Rosters.SLOT_TYPES, true, -1)
+    _add_column(40.0, "YOUR SEVEN", home, Rosters.SLOT_TYPES, locked_tag_index < 0, locked_tag_index)
     _add_column(644.0, "%s SEVEN" % away["short"], away, Rosters.DEFENSE_SLOT_TYPES, false, away_tag_index)
 
     var hint: Label = _label(Vector2(40, LINEUP_TOP + 7.0 * ROW_STEP + 4.0), Vector2(596, 24), 14)
-    hint.text = "TAG one player: they cannot be raided if you lose."
+    hint.text = "Franchise tag is locked for the season." if locked_tag_index >= 0 else "TAG one player: they cannot be raided if you lose. It locks for the season."
     hint.modulate = Color(1, 1, 1, 0.6)
     root.add_child(hint)
 

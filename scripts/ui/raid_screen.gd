@@ -25,15 +25,17 @@ var summary_label: Label
 var confirm_button: Button
 var buttons: HBoxContainer
 var applied: bool = false
+var continue_text: String = "PLAY AGAIN"
 
 func _ready() -> void:
     layer = 110
 
-func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int, user_won: bool) -> void:
+func setup(winner_team: Dictionary, loser_team: Dictionary, loser_tag_index: int, user_won: bool, after_text: String) -> void:
     winner = winner_team
     loser = loser_team
     loser_tag = loser_tag_index
     user_is_winner = user_won
+    continue_text = after_text
     take_index = -1
     give_index = -1
     applied = false
@@ -152,7 +154,7 @@ func _on_confirm_pressed() -> void:
     else:
         summary_label.text = "%s is gone. %s arrives in his place." % [taken["name"], given["name"]]
     confirm_button.visible = false
-    var again: Button = _button("PLAY AGAIN", Vector2(300, 60), 22)
+    var again: Button = _button(continue_text, Vector2(300, 60), 22)
     again.pressed.connect(func() -> void: play_again_requested.emit())
     buttons.add_child(again)
     buttons.move_child(again, 0)

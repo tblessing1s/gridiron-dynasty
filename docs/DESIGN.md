@@ -32,7 +32,7 @@ Elimination order sets draft order: first eliminated picks first. Being knocked 
 
 ### 3.1 Two elimination variants
 
-- **Capital model (default).** Losing a border battle costs you that territory and a player. You are eliminated only when your capital falls. Every empire has 2–3 lives once it has captured a territory or two.
+- **Capital model (default).** Losing a border battle costs you that territory and a player: a failed attack hands the defender the territory you attacked from, unless that was your capital, which only ever falls to a direct attack. You are eliminated only when your capital falls. Every empire has 2–3 lives once it has captured a territory or two.
 - **Sudden death.** Any loss eliminates. Simpler and more brutal. Kept as an optional ruleset toggle.
 
 Eliminated players fast-forward through the remaining weeks (results shown as a ticker) straight to the offseason, where the draft is their payoff.
@@ -304,7 +304,7 @@ Each phase is playable on its own.
 
 - **Phase 1 (done).** Single drive: drag-to-throw, routes, defenders, downs, clock.
 - **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters, matchup screen, border bar, home-crowd modifier, aftermath with battle XP and fatigue, the raid with franchise-tag protection and the morale penalty (rosters persist for the session). Still to do: stakes scaling, balance pass.
-- **Phase 3 — Season.** Player/Empire/Territory/Season model, map screen, weekly attacks, AI empire behaviour, rookie protection and tag locking for the raid, elimination, save/load. AI-vs-AI battles auto-resolve.
+- **Phase 3 — Season (in progress).** Done: Empire/Territory/Season model, map screen, weekly attacks, AI empire attack planning, one battle per empire per week, capital-model elimination with absorption, AI-vs-AI auto-resolve with auto-raids, tag locking, season end at last-standing or week 12. Still to do: save/load, rookie protection (needs the draft), territory resource effects, attack-origin choice when several apply.
 - **Phase 4 — Dynasty.** Offseason: draft, aging, retirement, contracts, traits, training points, loyalty, history lines, season summary.
 - **Phase 5 — Polish.** Map reset rules, stakes scaling, territory modifiers, awards, balance passes on the play-call matrix and age curve.
 
