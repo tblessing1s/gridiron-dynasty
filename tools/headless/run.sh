@@ -35,7 +35,8 @@ run() {
 run season_test
 run offseason_test
 run save_test
+run battle_test 3 2
 run battle_test 1 1
-run season_flow_test 1 3
+run season_flow_test 3 3
 run offseason_flow_test
 run save_flow_test

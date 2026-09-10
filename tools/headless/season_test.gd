@@ -5,6 +5,7 @@ extends SceneTree
 
 const SeasonScript = preload("res://scripts/core/season.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
+const Rosters = preload("res://scripts/core/rosters.gd")
 
 var previous_resources: Dictionary = {}
 
@@ -52,6 +53,10 @@ func _check_invariants(season) -> void:
             assert(owned.size() > 0, "alive empire owns nothing")
             assert(owned.has(int(e["capital_id"])), "alive empire lost its capital without elimination")
         assert(e["players"].size() == 7, "roster size drifted")
+        var players: Array = e["players"]
+        for i in range(players.size()):
+            var overall: int = Rosters.overall(players[i], i)
+            assert(overall >= 0 and overall <= 99, "overall out of 0-99 range")
         var id: int = int(e["id"])
         var training_points: int = int(e["training_points"])
         var money: int = int(e["money"])

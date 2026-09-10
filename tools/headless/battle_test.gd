@@ -5,6 +5,7 @@ extends SceneTree
 
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
 const RaidRules = preload("res://scripts/core/raid_rules.gd")
+const PlayBook = preload("res://scripts/core/play_book.gd")
 
 var game
 var frames: int = 0
@@ -13,7 +14,8 @@ var throws: int = 0
 var cards: int = 0
 var battles_wanted: int = 2
 var battles_done: int = 0
-var mode_arg: int = BattleSettings.Mode.PLAY
+var mode_arg: int = BattleSettings.Mode.SIM
+var sim_checks_done: int = 0
 var last_msg: String = ""
 var raid_confirmed_this_battle: bool = false
 
@@ -98,9 +100,25 @@ func _physics_process(_delta: float) -> bool:
         if "TOUCHDOWN" in msg or "INTERCEPT" in msg or "turnover" in msg or "SACKED" in msg:
             print("[%5d] " % frames, msg, "  border=%.2f" % game.scoreboard.border_bar.fraction)
     if state == game.PlayState.CALLING:
-        var index: int = randi_range(0, 3) if game._user_on_offense() else randi_range(0, 2)
+        var index: int = randi_range(0, PlayBook.OFFENSE_NAMES.size() - 1) if game._user_on_offense() else randi_range(0, PlayBook.DEFENSE_NAMES.size() - 1)
         cards += 1
+        if mode_arg == BattleSettings.Mode.SIM:
+            assert(not game.scoreboard.coach_label.text.is_empty(), "coach line should not be empty on a CALLING step")
+            assert(not game.scoreboard.read_label.text.is_empty(), "read line should not be empty on a CALLING step")
+            if sim_checks_done < 3:
+                print("COACH: ", game.scoreboard.coach_label.text)
         game._on_card_selected(index)
+        if mode_arg == BattleSettings.Mode.SIM:
+            assert(not game.scoreboard.detail_label.text.is_empty(), "SIM detail line should not be empty after a down resolves")
+            assert(game.lineup_strips.rows[0].size() == 7 and game.lineup_strips.rows[1].size() == 7, "lineup strips should have seven rows per side")
+            for side in range(2):
+                for i in range(7):
+                    assert(not str(game.lineup_strips.rows[side][i]["ovr"].text).is_empty(), "row overall should not be empty")
+            var any_highlight: bool = not game.lineup_strips.highlighted[0].is_empty() or not game.lineup_strips.highlighted[1].is_empty()
+            assert(any_highlight, "a highlight should be applied after a SIM down")
+            if sim_checks_done < 3:
+                print("DETAIL: ", game.scoreboard.detail_label.text)
+                sim_checks_done += 1
     elif state == game.PlayState.PRE_SNAP and game._user_throws_this_play():
         game._on_aim_started()
     elif state == game.PlayState.LIVE_POCKET and game._user_throws_this_play():

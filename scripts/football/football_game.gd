@@ -15,6 +15,7 @@ const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
+const LineupStripsScript = preload("res://scripts/ui/lineup_strips.gd")
 const MatchupScreenScript = preload("res://scripts/ui/matchup_screen.gd")
 const AftermathScreenScript = preload("res://scripts/ui/aftermath_screen.gd")
 const RaidScreenScript = preload("res://scripts/ui/raid_screen.gd")
@@ -47,6 +48,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var world_view: Node2D
 var field
 var scoreboard
+var lineup_strips
 var matchup_screen
 var aftermath_screen
 var raid_screen
@@ -59,6 +61,8 @@ var context: Dictionary = {}
 var home_crowd_active: bool = true
 var battle_fatigue_multiplier: float = 1.0
 var battle_stats: Array = [[], []]
+var offense_calls_seen: Array = [[], []]
+var defense_calls_seen: Array = [[], []]
 var auto_resolved: bool = false
 var last_user_won: bool = false
 var camera: Camera2D
@@ -137,6 +141,8 @@ func _load_teams() -> void:
         home_crowd_active = true
         battle_fatigue_multiplier = 1.0
         context = {"territory": "Ironvale", "origin": "Harbor Point", "user_is_attacker": true, "target_is_capital": false, "origin_is_capital": false}
+    Rosters.ensure_coaches(teams[0], rng, Rosters.team_rating(teams[0]["players"]))
+    Rosters.ensure_coaches(teams[1], rng, Rosters.team_rating(teams[1]["players"]))
 
 func _show_matchup() -> void:
     state = PlayState.BATTLE_OVER
@@ -225,6 +231,16 @@ func _reset_battle_stats() -> void:
         for i in range(players.size()):
             battle_stats[team_index].append(BattleXp.empty_stats())
 
+func _reset_calls_seen() -> void:
+    offense_calls_seen = [_zeros(PlayBook.OFFENSE_NAMES.size()), _zeros(PlayBook.OFFENSE_NAMES.size())]
+    defense_calls_seen = [_zeros(PlayBook.DEFENSE_NAMES.size()), _zeros(PlayBook.DEFENSE_NAMES.size())]
+
+func _zeros(count: int) -> Array:
+    var values: Array = []
+    for i in range(count):
+        values.append(0)
+    return values
+
 func _bump(team_index: int, player_index: int, key: String, amount: int = 1) -> void:
     if player_index < 0 or player_index >= battle_stats[team_index].size():
         return
@@ -304,6 +320,14 @@ func _build_world() -> void:
     football.pass_intercepted.connect(_on_pass_intercepted)
     world_view.add_child(football)
 
+    # SIM/AUTO-RESOLVE never run the real-time snap/pocket/throw sequence, so
+    # the player bodies would just sit at their pre-snap spots forever,
+    # cluttering the lineup strips; only the field itself stays visible as a
+    # backdrop. PLAY/WATCH (hidden behind SHOW_REALTIME_MODES) keep them.
+    var show_actors: bool = BattleSettings.is_realtime(mode)
+    for actor in [qb, running_back] + receivers + blockers + defenders:
+        actor.visible = show_actors
+
     camera = Camera2D.new()
     camera.zoom = Vector2(1.8, 1.8)
     camera.position_smoothing_enabled = true
@@ -319,6 +343,9 @@ func _build_world() -> void:
     scoreboard = ScoreboardScript.new()
     scoreboard.card_selected.connect(_on_card_selected)
     add_child(scoreboard)
+
+    lineup_strips = LineupStripsScript.new()
+    add_child(lineup_strips)
 
     matchup_screen = MatchupScreenScript.new()
     matchup_screen.play_requested.connect(_on_matchup_play)
@@ -350,6 +377,8 @@ func _start_battle() -> void:
     possession_log.clear()
     auto_resolved = false
     _reset_battle_stats()
+    _reset_calls_seen()
+    lineup_strips.setup(teams[0], teams[1])
     _refresh_score()
     _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[attacker_team]["short"], TOTAL_POSSESSIONS])
 
@@ -426,6 +455,7 @@ func _assign_teams() -> void:
         catcher.user_control_allowed = _user_controls_offense()
 
     field.set_end_zone_labels(offense["short"])
+    lineup_strips.set_roles(offense_team)
 
 func _prepare_play(message: String = "") -> void:
     state = PlayState.CALLING
@@ -460,6 +490,7 @@ func _prepare_play(message: String = "") -> void:
     aim_line.visible = false
     aim_line.clear_points()
     throw_target.hide_marker()
+    scoreboard.set_detail("")
 
     scoreboard.update_situation(down, yards_to_go, ball_yard)
     scoreboard.update_possession(_possession_text())
@@ -468,32 +499,77 @@ func _prepare_play(message: String = "") -> void:
     scoreboard.set_message(message if not message.is_empty() else "Call the play.")
 
 func _offer_cards() -> void:
+    var score_diff: int = scores[offense_team] - scores[1 - offense_team]
+    var sudden_death: bool = possession_number > TOTAL_POSSESSIONS
+    var last_possession: bool = possession_number == TOTAL_POSSESSIONS and score_diff < 0
+    var sit: Dictionary = PlayBook.situation(down, yards_to_go, ball_yard, GameConstants.FIELD_YARDS, score_diff, sudden_death, last_possession)
+    var tags: String = PlayBook.situation_text(sit)
+    var opp_tendency: Dictionary = BattleSim.team_tendency(teams[1])
+
     if _user_on_offense():
-        defense_card = PlayBook.ai_defense_card(down, yards_to_go, rng)
+        defense_card = PlayBook.ai_defense_card(down, yards_to_go, rng, sit, opp_tendency)
         var awareness: int = qb.stat("awareness")
-        var read_known: bool = rng.randf() < Rosters.read_chance(awareness)
-        var hints: Array[String] = []
-        for i in range(PlayBook.OFFENSE_NAMES.size()):
-            if read_known:
-                hints.append("vs %s: %s" % [PlayBook.DEFENSE_NAMES[defense_card], PlayBook.matchup_label(i, defense_card)])
-            else:
-                hints.append(PlayBook.OFFENSE_HINTS[i])
-        if read_known:
-            scoreboard.set_read("READ (%s, AWR %d): defense showing %s" % [qb.player_name(), awareness, PlayBook.DEFENSE_NAMES[defense_card]])
+        var tier: int = PlayBook.read_tier(awareness, rng)
+        var read_text: String
+        if tier == 2:
+            read_text = "READ (%s, AWR %d): defense showing %s" % [qb.player_name(), awareness, PlayBook.DEFENSE_NAMES[defense_card]]
+        elif tier == 1:
+            read_text = "READ (%s, AWR %d): defense in a %s look" % [qb.player_name(), awareness, PlayBook.defense_family_name(defense_card)]
         else:
-            scoreboard.set_read("READ (%s, AWR %d): no tell this time" % [qb.player_name(), awareness])
-        scoreboard.show_cards(PlayBook.OFFENSE_NAMES, hints)
+            read_text = "READ (%s, AWR %d): no tell this time" % [qb.player_name(), awareness]
+        scoreboard.set_read(_join_tags(read_text, tags))
+
+        var oc: Dictionary = Rosters.coach(teams[0], "oc")
+        var weights: Array[int] = PlayBook.defense_weights(down, yards_to_go, sit, opp_tendency)
+        var coord: Dictionary = PlayBook.coordinator_read(int(oc["rating"]), defense_card, defense_calls_seen[1], weights, PlayBook.DEFENSE_NAMES, rng)
+        var expected: int = defense_card if tier == 2 else int(coord["expects"])
+        var exact: bool = tier == 2 or bool(coord["certain"])
+        var suggested: int = BattleSim.suggest_offense(teams[0], teams[1], expected, sit)
+        scoreboard.set_coach("OC %s (%d): %s — expect %s. Call %s.  •  %s" % [oc["name"], int(oc["rating"]), coord["basis"], PlayBook.DEFENSE_NAMES[expected], PlayBook.OFFENSE_NAMES[suggested], PlayBook.tendency_text(opp_tendency)])
+
+        var edges: Dictionary = BattleSim.card_edges(teams[0], teams[1])
+        var hints: Array = edges["offense_hints"]
+        var texts: Array = []
+        for i in range(PlayBook.OFFENSE_NAMES.size()):
+            var verb: String = "vs" if exact else "if"
+            var star: String = "* " if i == suggested else ""
+            texts.append("%s\n%s %s: %s\n%s%s" % [PlayBook.OFFENSE_NAMES[i], verb, PlayBook.DEFENSE_NAMES[expected], PlayBook.matchup_label(i, expected), star, hints[i]])
+        scoreboard.show_cards(texts)
     else:
-        offense_card = PlayBook.ai_offense_card(down, yards_to_go, rng)
+        offense_card = PlayBook.ai_offense_card(down, yards_to_go, rng, sit, opp_tendency)
         var safety = defenders[0]
         var awareness: int = safety.stat("awareness")
-        var read_known: bool = rng.randf() < Rosters.read_chance(awareness)
-        if read_known:
-            var look: String = "RUN" if PlayBook.OFFENSE_IS_RUN[offense_card] else "PASS"
-            scoreboard.set_read("READ (%s, AWR %d): offense in a %s look" % [safety.player_name(), awareness, look])
+        var tier: int = PlayBook.read_tier(awareness, rng)
+        var read_text: String
+        if tier == 2:
+            read_text = "READ (%s, AWR %d): offense showing %s" % [safety.player_name(), awareness, PlayBook.OFFENSE_NAMES[offense_card]]
+        elif tier == 1:
+            read_text = "READ (%s, AWR %d): offense in a %s look" % [safety.player_name(), awareness, PlayBook.offense_family_name(offense_card)]
         else:
-            scoreboard.set_read("READ (%s, AWR %d): no tell this time" % [safety.player_name(), awareness])
-        scoreboard.show_cards(PlayBook.DEFENSE_NAMES, PlayBook.DEFENSE_HINTS)
+            read_text = "READ (%s, AWR %d): no tell this time" % [safety.player_name(), awareness]
+        scoreboard.set_read(_join_tags(read_text, tags))
+
+        var dc: Dictionary = Rosters.coach(teams[0], "dc")
+        var weights: Array[int] = PlayBook.offense_weights(down, yards_to_go, sit, opp_tendency)
+        var coord: Dictionary = PlayBook.coordinator_read(int(dc["rating"]), offense_card, offense_calls_seen[1], weights, PlayBook.OFFENSE_NAMES, rng)
+        var expected: int = offense_card if tier == 2 else int(coord["expects"])
+        var exact: bool = tier == 2 or bool(coord["certain"])
+        var suggested: int = BattleSim.suggest_defense(teams[1], teams[0], expected, sit)
+        scoreboard.set_coach("DC %s (%d): %s — expect %s. Call %s.  •  %s" % [dc["name"], int(dc["rating"]), coord["basis"], PlayBook.OFFENSE_NAMES[expected], PlayBook.DEFENSE_NAMES[suggested], PlayBook.tendency_text(opp_tendency)])
+
+        var edges: Dictionary = BattleSim.card_edges(teams[1], teams[0])
+        var hints: Array = edges["defense_hints"]
+        var texts: Array = []
+        for i in range(PlayBook.DEFENSE_NAMES.size()):
+            var verb: String = "vs" if exact else "if"
+            var star: String = "* " if i == suggested else ""
+            texts.append("%s\n%s %s: %s\n%s%s" % [PlayBook.DEFENSE_NAMES[i], verb, PlayBook.OFFENSE_NAMES[expected], PlayBook.matchup_label(expected, i), star, hints[i]])
+        scoreboard.show_cards(texts)
+
+func _join_tags(text: String, tags: String) -> String:
+    if tags.is_empty():
+        return text
+    return "%s • %s" % [text, tags]
 
 func _on_card_selected(index: int) -> void:
     if state != PlayState.CALLING:
@@ -502,9 +578,16 @@ func _on_card_selected(index: int) -> void:
         offense_card = index
     else:
         defense_card = index
+    offense_calls_seen[offense_team][offense_card] += 1
+    defense_calls_seen[1 - offense_team][defense_card] += 1
+    if _user_on_offense():
+        lineup_strips.highlight_card(0, offense_card, true)
+    else:
+        lineup_strips.highlight_card(0, defense_card, false)
     scoreboard.hide_cards()
     if mode == BattleSettings.Mode.SIM:
         scoreboard.set_read("")
+        scoreboard.set_coach("")
         _resolve_sim_play()
         return
     _setup_formation()
@@ -527,7 +610,7 @@ func _setup_formation() -> void:
         _rusher(i).pocket_seconds = pocket
         shortest_pocket = minf(shortest_pocket, pocket)
     for defender in defenders:
-        defender.assignment = defense_card
+        defender.assignment = PlayBook.defense_assignment(defense_card)
         defender.offset_scale = 1.0
     defenders[1].pocket_seconds = shortest_pocket * 0.6 + 0.3
     if defense_card == PlayBook.Defense.COVER:
@@ -536,6 +619,9 @@ func _setup_formation() -> void:
     elif defense_card == PlayBook.Defense.BLITZ:
         defenders[2].offset_scale = 1.8
         defenders[3].offset_scale = 1.8
+    elif defense_card == PlayBook.Defense.PRESS:
+        defenders[2].offset_scale = 0.4
+        defenders[3].offset_scale = 0.4
     field.set_route_previews(_build_routes())
     ai_decision_seconds = Rosters.decision_seconds(qb.stat("awareness"))
 
@@ -561,6 +647,13 @@ func _build_routes() -> Array[PackedVector2Array]:
             wr1 = PackedVector2Array([Vector2(los + 2.0 * yd, 200.0)])
             wr2 = PackedVector2Array([Vector2(los + 2.0 * yd, 590.0)])
             rb = PackedVector2Array([Vector2(los - 40.0, 520.0), Vector2(los + 1.0 * yd, 560.0)])
+        PlayBook.Offense.SWEEP:
+            wr1 = PackedVector2Array([Vector2(los + 3.0 * yd, 245.0)])
+            wr2 = PackedVector2Array([Vector2(los + 3.0 * yd, 540.0)])
+            rb = PackedVector2Array([Vector2(los - 30.0, CENTER_Y + 90.0), Vector2(los + 6.0 * yd, CENTER_Y + 130.0)])
+        PlayBook.Offense.PLAY_ACTION:
+            wr1 = PackedVector2Array([Vector2(los + 6.0 * yd, 235.0), Vector2(los + 18.0 * yd, 210.0), Vector2(los + 28.0 * yd, 210.0)])
+            wr2 = PackedVector2Array([Vector2(los + 6.0 * yd, 540.0), Vector2(los + 14.0 * yd, 460.0), Vector2(los + 22.0 * yd, 420.0)])
     var routes: Array[PackedVector2Array] = [_clamp_route(wr1, max_x), _clamp_route(wr2, max_x), _clamp_route(rb, max_x)]
     return routes
 
@@ -596,6 +689,7 @@ func _resolve_sim_play() -> void:
     var defense: Dictionary = teams[1 - offense_team]
     var attacker_penalty: bool = home_crowd_active and offense_team == attacker_team
     var outcome: Dictionary = BattleSim.resolve_single_play(offense, defense, offense_card, defense_card, attacker_penalty, rng)
+    scoreboard.set_detail(str(outcome.get("detail", "")))
     current_carrier = null
     for i in range(battle_stats[offense_team].size()):
         _bump(offense_team, i, "plays")
@@ -621,6 +715,7 @@ func _resolve_sim_play() -> void:
             _bump(1 - offense_team, 0, "interceptions")
         _:
             pass
+    _highlight_result(result, scorer_index)
 
     if scores_touchdown:
         _bump(offense_team, scorer_index, "touchdowns")
@@ -633,6 +728,24 @@ func _resolve_sim_play() -> void:
     var counts_yards: bool = result != "INCOMPLETE"
     var end_x: float = play_start_x + float(yards) * GameConstants.PIXELS_PER_YARD
     _finish_play(end_x, counts_yards, result)
+
+func _highlight_result(result: String, scorer_index: int) -> void:
+    match result:
+        "RUN":
+            lineup_strips.highlight_players(offense_team, [1])
+            lineup_strips.highlight_players(1 - offense_team, [1])
+        "SACK":
+            lineup_strips.highlight_players(offense_team, [0, 4, 5, 6])
+            lineup_strips.highlight_players(1 - offense_team, [4, 5, 6])
+        "PASS":
+            lineup_strips.highlight_players(offense_team, [0, scorer_index])
+            lineup_strips.highlight_players(1 - offense_team, [scorer_index])
+        "INTERCEPTED":
+            lineup_strips.highlight_players(offense_team, [0])
+            lineup_strips.highlight_players(1 - offense_team, [0])
+        _:
+            lineup_strips.highlight_players(offense_team, [0])
+            lineup_strips.highlight_players(1 - offense_team, [])
 
 func _handoff(carrier) -> void:
     current_carrier = carrier
@@ -662,7 +775,7 @@ func _physics_process(delta: float) -> void:
             hold_seconds += delta
             if _check_sack():
                 return
-            if offense_card == PlayBook.Offense.DRAW:
+            if PlayBook.OFFENSE_IS_HANDOFF[offense_card]:
                 if hold_seconds >= DRAW_HANDOFF_SECONDS:
                     _handoff(running_back)
             elif not _user_throws_this_play():

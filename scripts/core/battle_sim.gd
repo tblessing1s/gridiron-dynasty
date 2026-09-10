@@ -5,16 +5,26 @@ const PlayBook = preload("res://scripts/core/play_book.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 
 # Auto-resolve: plays a whole Border War with the same cards, matchup table,
-# and stat edges as the live battle, without animating anything.
+# and stat edges as the live battle, without animating anything. Also the
+# call sheet's math: expected yards, card suggestions, and the stat-matchup
+# strings shown on every card and in the result line.
 
 const MAX_POSSESSIONS: int = 20
 # Stadium/Capital home crowd: the attacker (home, here) throws worse on the road.
 const HOME_CROWD_COMPLETION_FACTOR: float = 0.85
 
+# Empires carry a coach personality (PlayBook.coach_tendency); the hand-made
+# quick-battle rosters have no empire id and call evenly.
+static func team_tendency(team: Dictionary) -> Dictionary:
+    if not team.has("id"):
+        return {}
+    return PlayBook.coach_tendency(int(team["id"]))
+
 # home is always the attacker, away the defender; home_crowd is true when the
 # territory being fought over is a Stadium or Capital (season.home_crowd_at).
 static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerator, home_crowd: bool = false) -> Dictionary:
     var teams: Array = [home, away]
+    var tendencies: Array = [team_tendency(home), team_tendency(away)]
     var scores: Array[int] = [0, 0]
     var log: Array[String] = []
     var offense: int = 0
@@ -23,7 +33,10 @@ static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerat
     var total: int = GameConstants.POSSESSIONS_PER_TEAM * 2
 
     while true:
-        var outcome: Dictionary = _resolve_possession(teams[offense], teams[1 - offense], start_yard, rng, home_crowd and offense == 0)
+        var sudden_death: bool = possession > total
+        var score_diff: int = scores[offense] - scores[1 - offense]
+        var last_possession: bool = possession == total and score_diff < 0
+        var outcome: Dictionary = _resolve_possession(teams[offense], teams[1 - offense], start_yard, rng, home_crowd and offense == 0, tendencies[offense], tendencies[1 - offense], score_diff, sudden_death, last_possession)
         if outcome["touchdown"]:
             scores[offense] += 7
             start_yard = GameConstants.MIDFIELD_YARD
@@ -47,22 +60,23 @@ static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerat
 
     return {"home_score": scores[0], "away_score": scores[1], "log": log}
 
-# Resolves one offensive play in isolation, for the SIM battle mode: call a
-# card, get this same card/stat math back as a single result instead of the
-# real-time snap/pocket/throw sequence. attacker_penalty is home_crowd_at
-# AND this offense is the battle's attacker (mirrors resolve()'s own check).
+# Resolves one offensive play in isolation, for the SIM battle mode: the
+# player (or AI) has already called both cards; this is the same card/stat
+# math the auto-resolver uses, without the real-time snap/pocket/throw
+# sequence.
 static func resolve_single_play(offense: Dictionary, defense: Dictionary, offense_card: int, defense_card: int, attacker_penalty: bool, rng: RandomNumberGenerator) -> Dictionary:
     return _resolve_play(offense, defense, offense_card, defense_card, rng, attacker_penalty)
 
-static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_yard: int, rng: RandomNumberGenerator, attacker_penalty: bool) -> Dictionary:
+static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_yard: int, rng: RandomNumberGenerator, attacker_penalty: bool, offense_tendency: Dictionary, defense_tendency: Dictionary, score_diff: int, sudden_death: bool, last_possession: bool) -> Dictionary:
     var yard: int = start_yard
     var down: int = 1
     var yards_to_go: int = GameConstants.FIRST_DOWN_YARDS
     var plays: int = 0
     while plays < 100:
         plays += 1
-        var offense_card: int = PlayBook.ai_offense_card(down, yards_to_go, rng)
-        var defense_card: int = PlayBook.ai_defense_card(down, yards_to_go, rng)
+        var sit: Dictionary = PlayBook.situation(down, yards_to_go, yard, GameConstants.FIELD_YARDS, score_diff, sudden_death, last_possession)
+        var offense_card: int = PlayBook.ai_offense_card(down, yards_to_go, rng, sit, offense_tendency)
+        var defense_card: int = PlayBook.ai_defense_card(down, yards_to_go, rng, sit, defense_tendency)
         var play: Dictionary = _resolve_play(offense, defense, offense_card, defense_card, rng, attacker_penalty)
         if play["turnover"]:
             return {"touchdown": false, "end_yard": yard, "summary": "%s at the %d (%d plays)" % [play["result"], yard, plays]}
@@ -87,20 +101,28 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
     var dp: Array = defense["players"]
     var block_power: float = Rosters.line_power(op)
     var rush_power: float = Rosters.line_power(dp)
+    var header: String = "%s vs %s (%s ×%.2f)" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], PlayBook.matchup_label(offense_card, defense_card), multiplier]
 
     if PlayBook.OFFENSE_IS_RUN[offense_card]:
+        if offense_card == PlayBook.Offense.SWEEP:
+            return _resolve_sweep(op, dp, multiplier, header, rng)
         var run_edge: float = (float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) + block_power - rush_power) / 300.0
         var run_factor: float = 1.0 + run_edge
         var mean: float = 5.0 if offense_card == PlayBook.Offense.DRAW else 6.0
         var deviation: float = 3.0 if offense_card == PlayBook.Offense.DRAW else 4.0
         var run_yards: int = int(round(rng.randfn(mean, deviation) * multiplier * run_factor))
-        return {"yards": maxi(run_yards, -3), "result": "RUN", "turnover": false}
+        var detail: String = "%s • %s SPD/PWR %d/%d vs %s LB %d/%d • LINE %d vs %d • edge %+d%%" % [header, str(op[1]["name"]), _stat(op[1], "speed"), _stat(op[1], "power"), str(dp[1]["name"]), _stat(dp[1], "speed"), _stat(dp[1], "power"), int(round(block_power)), int(round(rush_power)), int(round(run_edge * 100.0))]
+        return {"yards": maxi(run_yards, -3), "result": "RUN", "turnover": false, "detail": detail}
 
     var sack_chance: float = clampf(0.08 + (rush_power - block_power) * 0.004, 0.02, 0.35)
     if defense_card == PlayBook.Defense.BLITZ:
         sack_chance *= 1.5
+    if offense_card == PlayBook.Offense.PLAY_ACTION:
+        sack_chance *= 1.35
+    sack_chance = clampf(sack_chance, 0.02, 0.6)
     if rng.randf() < sack_chance:
-        return {"yards": -rng.randi_range(4, 8), "result": "SACK", "turnover": false}
+        var sack_detail: String = "%s • SACKED • pocket %d vs rush %d • %d%% sack chance" % [header, int(round(block_power)), int(round(rush_power)), int(round(sack_chance * 100.0))]
+        return {"yards": -rng.randi_range(4, 8), "result": "SACK", "turnover": false, "detail": sack_detail}
 
     var pass_edge: float = float(_stat(op[0], "skill") + _stat(op[2], "speed") + _stat(op[3], "speed") - _stat(dp[2], "speed") - _stat(dp[3], "speed") - _stat(dp[0], "awareness")) / 300.0
     var pass_factor: float = 1.0 + pass_edge
@@ -113,17 +135,155 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
         mean_yards = 18.0
         deviation_yards = 7.0
         interception_chance = 0.07
+    elif offense_card == PlayBook.Offense.PLAY_ACTION:
+        completion = 0.56
+        mean_yards = 11.0
+        deviation_yards = 5.0
+        interception_chance = 0.05
     completion = clampf(completion * (0.75 + 0.25 * multiplier) * pass_factor, 0.1, 0.92)
     if attacker_penalty:
         completion *= HOME_CROWD_COMPLETION_FACTOR
+    if defense_card == PlayBook.Defense.PRESS:
+        completion *= 0.9
+        deviation_yards *= 1.25
+    var complete_detail: String = "%s • %s SKL %d • WRs SPD %d/%d vs CBs %d/%d, %s AWR %d • %d%% to complete" % [header, str(op[0]["name"]), _stat(op[0], "skill"), _stat(op[2], "speed"), _stat(op[3], "speed"), _stat(dp[2], "speed"), _stat(dp[3], "speed"), str(dp[0]["name"]), _stat(dp[0], "awareness"), int(round(completion * 100.0))]
     if rng.randf() < completion:
         var pass_yards: int = maxi(int(round(rng.randfn(mean_yards, deviation_yards) * multiplier * pass_factor)), 1)
-        return {"yards": pass_yards, "result": "PASS", "turnover": false}
+        return {"yards": pass_yards, "result": "PASS", "turnover": false, "detail": complete_detail}
     if multiplier < 1.0:
         interception_chance *= 2.0
     if rng.randf() < interception_chance:
-        return {"yards": 0, "result": "INTERCEPTED", "turnover": true}
-    return {"yards": 0, "result": "INCOMPLETE", "turnover": false}
+        var pick_detail: String = "%s • INTERCEPTED • %s reads it • %d%% pick chance" % [header, str(dp[0]["name"]), int(round(interception_chance * 100.0))]
+        return {"yards": 0, "result": "INTERCEPTED", "turnover": true, "detail": pick_detail}
+    return {"yards": 0, "result": "INCOMPLETE", "turnover": false, "detail": complete_detail}
+
+static func _resolve_sweep(op: Array, dp: Array, multiplier: float, header: String, rng: RandomNumberGenerator) -> Dictionary:
+    var block_power: float = Rosters.line_power(op)
+    var rush_power: float = Rosters.line_power(dp)
+    var edge_speed: float = _edge_speed(dp)
+    var run_edge: float = (float(_stat(op[1], "speed")) * 1.5 - edge_speed * 1.5 + (block_power - rush_power) * 0.5) / 300.0
+    var run_factor: float = 1.0 + run_edge
+    var run_yards: int = int(round(rng.randfn(6.0, 6.0) * multiplier * run_factor))
+    var detail: String = "%s • %s SPD %d vs edge %d • edge %+d%%" % [header, str(op[1]["name"]), _stat(op[1], "speed"), int(round(edge_speed)), int(round(run_edge * 100.0))]
+    return {"yards": maxi(run_yards, -6), "result": "RUN", "turnover": false, "detail": detail}
+
+static func _edge_speed(dp: Array) -> float:
+    return (float(_stat(dp[1], "speed")) + float(_stat(dp[2], "speed")) + float(_stat(dp[3], "speed"))) / 3.0
 
 static func _stat(player: Dictionary, key: String) -> int:
     return int(player.get(key, 50))
+
+# ---------------------------------------------------------------- the call sheet
+
+# One short "why" string per card, naming the stats that decide it, plus a
+# float edge (positive favors the side named). Powers the stat hint (and the
+# ★ on the coordinator's suggestion) shown on every card face.
+static func card_edges(offense: Dictionary, defense: Dictionary) -> Dictionary:
+    var op: Array = offense["players"]
+    var dp: Array = defense["players"]
+    var block_power: float = Rosters.line_power(op)
+    var rush_power: float = Rosters.line_power(dp)
+    var edge_speed: float = _edge_speed(dp)
+
+    var offense_hints: Array[String] = [
+        "QB%d WR%d v CB%d" % [_stat(op[0], "skill"), _stat(op[2], "speed"), _stat(dp[2], "speed")],
+        "QB%d WR%d v CB%d" % [_stat(op[0], "skill"), _stat(op[3], "speed"), _stat(dp[3], "speed")],
+        "RB%d/%d v LB%d/%d" % [_stat(op[1], "speed"), _stat(op[1], "power"), _stat(dp[1], "speed"), _stat(dp[1], "power")],
+        "RB%d/%d v LB%d/%d" % [_stat(op[1], "speed"), _stat(op[1], "power"), _stat(dp[1], "speed"), _stat(dp[1], "power")],
+        "RB%d v edge%d" % [_stat(op[1], "speed"), int(round(edge_speed))],
+        "QB%d v %s AWR%d" % [_stat(op[0], "skill"), str(dp[0]["name"]), _stat(dp[0], "awareness")],
+    ]
+    var offense_edges: Array[float] = [
+        float(_stat(op[0], "skill") + _stat(op[2], "speed") - _stat(dp[2], "speed")) / 100.0,
+        float(_stat(op[0], "skill") + _stat(op[3], "speed") - _stat(dp[3], "speed")) / 100.0,
+        float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) / 100.0 + (block_power - rush_power) / 100.0,
+        float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) / 100.0 + (block_power - rush_power) / 100.0,
+        (float(_stat(op[1], "speed")) - edge_speed) / 100.0,
+        float(_stat(op[0], "skill") - _stat(dp[0], "awareness")) / 100.0,
+    ]
+
+    var defense_hints: Array[String] = [
+        "WR%d/%d v CB%d/%d" % [_stat(op[2], "speed"), _stat(op[3], "speed"), _stat(dp[2], "speed"), _stat(dp[3], "speed")],
+        "RUSH%d v LINE%d" % [int(round(rush_power)), int(round(block_power))],
+        "%s AWR%d v QB%d" % [str(dp[0]["name"]), _stat(dp[0], "awareness"), _stat(op[0], "skill")],
+        "CB%d/%d v WR%d/%d" % [_stat(dp[2], "skill"), _stat(dp[3], "skill"), _stat(op[2], "speed"), _stat(op[3], "speed")],
+    ]
+    var defense_edges: Array[float] = [
+        float(_stat(dp[2], "speed") + _stat(dp[3], "speed") - _stat(op[2], "speed") - _stat(op[3], "speed")) / 100.0,
+        (rush_power - block_power) / 100.0,
+        float(_stat(dp[0], "awareness") - _stat(op[0], "skill")) / 100.0,
+        float(_stat(dp[2], "skill") + _stat(dp[3], "skill") - _stat(op[2], "speed") - _stat(op[3], "speed")) / 100.0,
+    ]
+
+    return {"offense_hints": offense_hints, "defense_hints": defense_hints, "offense_edges": offense_edges, "defense_edges": defense_edges}
+
+# The resolver's math without dice: a pick charged at -15, a sack at -6.
+static func expected_yards(offense: Dictionary, defense: Dictionary, offense_card: int, defense_card: int) -> float:
+    var multiplier: float = PlayBook.matchup_multiplier(offense_card, defense_card)
+    var op: Array = offense["players"]
+    var dp: Array = defense["players"]
+    var block_power: float = Rosters.line_power(op)
+    var rush_power: float = Rosters.line_power(dp)
+
+    if PlayBook.OFFENSE_IS_RUN[offense_card]:
+        if offense_card == PlayBook.Offense.SWEEP:
+            var edge_speed: float = _edge_speed(dp)
+            var sweep_edge: float = (float(_stat(op[1], "speed")) * 1.5 - edge_speed * 1.5 + (block_power - rush_power) * 0.5) / 300.0
+            return 6.0 * multiplier * (1.0 + sweep_edge)
+        var run_edge: float = (float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) + block_power - rush_power) / 300.0
+        var mean: float = 5.0 if offense_card == PlayBook.Offense.DRAW else 6.0
+        return mean * multiplier * (1.0 + run_edge)
+
+    var sack_chance: float = clampf(0.08 + (rush_power - block_power) * 0.004, 0.02, 0.35)
+    if defense_card == PlayBook.Defense.BLITZ:
+        sack_chance *= 1.5
+    if offense_card == PlayBook.Offense.PLAY_ACTION:
+        sack_chance *= 1.35
+    sack_chance = clampf(sack_chance, 0.02, 0.6)
+
+    var pass_edge: float = float(_stat(op[0], "skill") + _stat(op[2], "speed") + _stat(op[3], "speed") - _stat(dp[2], "speed") - _stat(dp[3], "speed") - _stat(dp[0], "awareness")) / 300.0
+    var pass_factor: float = 1.0 + pass_edge
+    var completion: float = 0.68
+    var mean_yards: float = 7.0
+    var interception_chance: float = 0.03
+    if offense_card == PlayBook.Offense.DEEP_SHOT:
+        completion = 0.42
+        mean_yards = 18.0
+        interception_chance = 0.07
+    elif offense_card == PlayBook.Offense.PLAY_ACTION:
+        completion = 0.56
+        mean_yards = 11.0
+        interception_chance = 0.05
+    completion = clampf(completion * (0.75 + 0.25 * multiplier) * pass_factor, 0.1, 0.92)
+    if defense_card == PlayBook.Defense.PRESS:
+        completion *= 0.9
+    if multiplier < 1.0:
+        interception_chance *= 2.0
+
+    var complete_value: float = mean_yards * multiplier * pass_factor
+    var incomplete_value: float = interception_chance * -15.0
+    return sack_chance * -6.0 + (1.0 - sack_chance) * (completion * complete_value + (1.0 - completion) * incomplete_value)
+
+static func suggest_offense(offense: Dictionary, defense: Dictionary, expected_defense_card: int, sit: Dictionary) -> int:
+    var best_card: int = PlayBook.Offense.SLANTS
+    var best_value: float = -INF
+    for card in range(PlayBook.OFFENSE_NAMES.size()):
+        var value: float = expected_yards(offense, defense, card, expected_defense_card)
+        if card == PlayBook.Offense.DEEP_SHOT and bool(sit.get("red_zone", false)):
+            value *= 0.5
+        if bool(sit.get("short", false)) and PlayBook.OFFENSE_FAMILY[card] == PlayBook.Family.PASS:
+            value *= 0.85
+        if value > best_value:
+            best_value = value
+            best_card = card
+    return best_card
+
+static func suggest_defense(offense: Dictionary, defense: Dictionary, expected_offense_card: int, sit: Dictionary) -> int:
+    var best_card: int = PlayBook.Defense.COVER
+    var best_value: float = INF
+    for card in range(PlayBook.DEFENSE_NAMES.size()):
+        var value: float = expected_yards(offense, defense, expected_offense_card, card)
+        if value < best_value:
+            best_value = value
+            best_card = card
+    return best_card

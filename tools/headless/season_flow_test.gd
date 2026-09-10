@@ -6,11 +6,12 @@ extends SceneTree
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
 const SeasonState = preload("res://scripts/core/season_state.gd")
 const RaidRules = preload("res://scripts/core/raid_rules.gd")
+const PlayBook = preload("res://scripts/core/play_book.gd")
 
 var frames: int = 0
 var weeks_wanted: int = 4
 var battles_started: int = 0
-var mode_arg: int = BattleSettings.Mode.WATCH
+var mode_arg: int = BattleSettings.Mode.SIM
 var last_scene_name: String = ""
 var map_action_taken_for_week: int = -1
 
@@ -98,7 +99,7 @@ func _physics_process(_delta: float) -> bool:
             return false
         var state: int = game.state
         if state == game.PlayState.CALLING:
-            game._on_card_selected(randi_range(0, 3) if game._user_on_offense() else randi_range(0, 2))
+            game._on_card_selected(randi_range(0, PlayBook.OFFENSE_NAMES.size() - 1) if game._user_on_offense() else randi_range(0, PlayBook.DEFENSE_NAMES.size() - 1))
         elif state == game.PlayState.PRE_SNAP and game._user_throws_this_play():
             game._on_aim_started()
         elif state == game.PlayState.LIVE_POCKET and game._user_throws_this_play() and game.hold_seconds > 0.9:

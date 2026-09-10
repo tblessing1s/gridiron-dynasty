@@ -118,27 +118,43 @@ Before the battle:
 
 ### 5.6 Involvement modes
 
-The throw is the only moment where a human choice beats the AI, so it is the only live control. Everything else — runs, the run after the catch, the defense — plays itself, and the player can choose how involved to be:
+**The game is play-calling and stats, not a live throw.** Sim — call every play, each down resolves instantly with the same card/stat math as auto-resolve — is the mode the player sees. Play and Watch (the live QB slingshot throw, receiver/defender AI) are kept in the codebase and stay parse-clean and runnable, but their menu buttons are hidden behind `BattleSettings.SHOW_REALTIME_MODES`; a save file set to one of them coerces to Sim on load.
 
-| Mode | Offense | Defense |
-|---|---|---|
-| Play | call the card, throw the ball (slingshot: pull away from the target, release) | call the card, watch |
-| Watch | call the card, AI throws | call the card, watch |
-| Sim | call the card, down resolves instantly with the same card/stat math as auto-resolve — no snap/pocket/throw animation | call the card, down resolves instantly |
-| Auto-resolve | whole battle simulated with the same cards and stats; box score only | — |
+| Mode | Offense | Defense | Shown on menu |
+|---|---|---|---|
+| Play | call the card, throw the ball (slingshot: pull away from the target, release) | call the card, watch | hidden |
+| Watch | call the card, AI throws | call the card, watch | hidden |
+| Sim | call the card, down resolves instantly with the same card/stat math as auto-resolve — no snap/pocket/throw animation | call the card, down resolves instantly | **default** |
+| Auto-resolve | whole battle simulated with the same cards and stats; box score only | — | shown |
 
-Draw and Screen are automatic in every mode. Steering the runner is optional in Play mode. Sim exists as a fallback for when the real-time engine (5.4/5.5) isn't behaving well: it keeps every down-by-down decision (cards, tagging, stakes) but removes the physics step, unlike Auto-resolve which removes per-down control entirely.
+Draw, Screen, and Sweep are automatic (run-resolved) in every mode. Steering the runner is optional in Play mode. Sim keeps every down-by-down decision (cards, tagging, stakes) but removes the physics step; Auto-resolve removes per-down control entirely.
 
 ### 5.7 Play-call matrix
 
-| | Cover | Blitz | Spy |
-|---|---|---|---|
-| Slants | even | good | even |
-| Deep Shot | bad | great (if pocket holds) | even |
-| Draw | bad | great | even |
-| Screen | even | good | bad |
+Six offense cards, four defense cards. Yardage multiplier:
 
-The matrix is a bias, not a lock. Stats and player input decide the play.
+| | Cover | Blitz | Spy | Press |
+|---|---|---|---|---|
+| Slants | even | good | even | bad |
+| Deep Shot | bad | great | even | great |
+| Draw | good | great | bad | good |
+| Screen | even | good | bad | bad |
+| Sweep | good | great | bad | great |
+| Play Action | good | bad | great | good |
+
+The matrix is a bias, not a lock. Stats and player input decide the play. Draw, Screen, and Sweep resolve as runs; Play Action resolves as a pass (with a higher sack chance and a play-fake) but *reads* as a run before the snap — it is meant to bait a defense that leans on its pre-snap look. Press plays tight man coverage: cheaper against short/quick routes, more exposed deep, and it tightens the real-time corners' coverage offset.
+
+**Situational calling.** Both AI sides weight their card choice by down, distance, red zone, 4th down, the final possession of regulation while trailing, and sudden death — short yardage leans run, long yardage and the red zone lean away from the deep shot (red zone: away from it; both trailing-late and 4th-and-long lean into it), a 4th-down defense gambles more, sudden death goes conservative on both sides. Every empire also carries a fixed **coach personality** (`PlayBook.coach_tendency`, seeded from its id — nothing new to save) with a run/pass lean and a blitz/coverage lean that shades its calls further; the hand-made quick-battle rosters call evenly.
+
+**Tiered pre-snap reads.** The QB's (or Safety's) Awareness decides how much of the other side's call is revealed before the snap, in three tiers: the exact card (chance ramping from Awareness 35 up to 60% at 95), a family-level look — RUN vs. PASS on offense, COVERAGE vs. PRESSURE on defense — at `awareness/100 × 0.9`, or nothing (`PlayBook.read_tier`). See §5.7a for how this combines with a coordinator's own read.
+
+### 5.7a The call sheet
+
+Every card face shows its stat matchup, not just the name: `card_edges` names the players and numbers that decide each card (`QB SKL 81 • WR SPD 78 v CB 75`, `RB 79/70 v LB 75/72`, `RUSH PWR 82 v LINE 80`, ...), and `expected_yards` collapses the resolver's whole probability tree into one number (a pick charged at −15, a sack at −6) so `suggest_offense`/`suggest_defense` can pick the mathematically best card for the situation — Deep Shot discounted in the red zone, passes discounted on short yardage.
+
+Each side has an **OC** and a **DC** (`Rosters.ensure_coaches`, rating = team rating ±12, generated once per team and carried across seasons and saves). Whichever coordinator is on the "read" side of the ball — the OC when the player is on offense, the DC when on defense — gets a read on the other side's call: with a rating-scaled chance (`clamp(rating/100 × 0.7, 0.1, 0.7)`) he simply has the signal; otherwise he scores every card by the situational weights plus how often that side has already called it this battle, and guesses the top scorer (`PlayBook.coordinator_read`). That guess, or the QB/Safety's own exact tier-2 read when it lands, becomes the card bar's "expect X, call Y" line, alongside the fixed coach-personality read of the opponent ("pass-happy, blitzes a lot"). Every card's stat-hint line carries a ★ on the coordinator's own suggested call.
+
+After every down, the message line is followed by a **detail line** naming the exact numbers the resolver used to reach that result — `SLANTS vs PRESS (bad ×0.60) • Bell SKL 81 • WRs SPD 84/72 vs CBs 75/71, Rowe AWR 60 • 41% to complete`, or the RB/LB and line numbers for a run, the pocket numbers for a sack, the pick chance for an interception.
 
 ### 5.8 Auto-resolve
 
@@ -184,6 +200,12 @@ Plus: **age**, hidden **potential** (ceiling per stat), one **trait** slot, **fa
 ### 6.3 Player card
 
 Four stat bars with a potential arrow on each (revealed after a few battles), age, trait, and a history line: *Drafted S2 #1 by Hawks · Raided S4 by Forge · Deep Threat unlocked S5.*
+
+Every row that shows a player also shows a slot-weighted **overall** (0–99) next to the name, with the same letter grade the draft's scout report uses (`Rosters.overall`/`Rosters.grade`): QB weights Skill/Awareness heaviest, RB and Blocker weight Speed/Power or Power/Awareness, WR weights Speed/Skill. The weighting is by the player's fixed offensive slot (QB/RB/WR/Blocker) regardless of which side of the ball a screen happens to be labelling him for.
+
+### 5.7b Lineup strips
+
+In Sim the field itself is idle between calls, so it doubles as the roster view for the whole battle: two seven-row strips (your team left, theirs right, in team colours) between the top bar and the card bar, each row showing slot, name, overall + grade, and all four stats. Selecting a card highlights the players it leans on — `LineupStrips.highlight_card`, using the same groupings `BattleSim.card_edges` names (QB + both WRs vs. both CBs + Safety for a pass-family card, the RB vs. the LB for an inside run, the RB vs. the LB and both CBs for the Sweep, the three blockers vs. three rushers for Blitz) — and after a down resolves, the players named in the result line stay highlighted until the next card is picked (`highlight_players`, called with the offense/defense indices `_resolve_sim_play` actually credited). The strips hide themselves whenever a real-time mode is active (`BattleSettings.is_realtime`), so the field stays uncluttered if `SHOW_REALTIME_MODES` is ever flipped back on.
 
 ## 7. The raid (post-battle swap)
 

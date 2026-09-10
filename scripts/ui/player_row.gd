@@ -9,7 +9,12 @@ const HEIGHT: float = 42.0
 const STATS_X: float = 190.0
 const STAT_SPACING: float = 84.0
 
-static func build(player: Dictionary, slot: String, color: Color, width: float, dim: bool = false) -> ColorRect:
+const Rosters = preload("res://scripts/core/rosters.gd")
+
+# overall_type names the player's offensive slot (QB/RB/WR/BL) for the
+# slot-weighted overall shown in the header, independent of which side's
+# label (e.g. "S", "CB") is on display; empty falls back to using slot.
+static func build(player: Dictionary, slot: String, color: Color, width: float, dim: bool = false, overall_type: String = "") -> ColorRect:
     var row: ColorRect = ColorRect.new()
     row.color = Color(1, 1, 1, 0.03 if dim else 0.06)
     row.size = Vector2(width, HEIGHT)
@@ -20,10 +25,16 @@ static func build(player: Dictionary, slot: String, color: Color, width: float, 
     slot_label.modulate = Color(color.lightened(0.4), alpha)
     row.add_child(slot_label)
 
-    var name_label: Label = _label(Vector2(56, 8), Vector2(130, 26), 17)
+    var name_label: Label = _label(Vector2(56, 8), Vector2(88, 26), 17)
     name_label.text = str(player["name"])
     name_label.modulate = Color(1, 1, 1, alpha)
     row.add_child(name_label)
+
+    var ov: int = Rosters.overall_for_type(player, overall_type if not overall_type.is_empty() else slot)
+    var ovr_label: Label = _label(Vector2(147, 11), Vector2(40, 20), 13)
+    ovr_label.text = "%d %s" % [ov, Rosters.grade(ov)]
+    ovr_label.modulate = Color(1, 0.85, 0.5, 0.9 * alpha)
+    row.add_child(ovr_label)
 
     for k in range(STAT_KEYS.size()):
         var stat_x: float = STATS_X + float(k) * STAT_SPACING

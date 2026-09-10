@@ -82,6 +82,10 @@ func reset_for_new_season(previous_empires: Array, next_number: int, champion: i
         rosters.append(e["players"])
     _build_empires(rosters)
     _build_territories()
+    for i in range(mini(previous_empires.size(), empires.size())):
+        var previous_coaches: Variant = previous_empires[i].get("coaches")
+        if previous_coaches is Dictionary:
+            empires[i]["coaches"] = (previous_coaches as Dictionary).duplicate(true)
 
 func _build_empires(existing_rosters: Array) -> void:
     empires.clear()
@@ -98,7 +102,7 @@ func _build_empires(existing_rosters: Array) -> void:
             players = Rosters.generate_players(rng.randi_range(54, 72), rng)
         for player in players:
             Rosters.ensure_career(player, rng)
-        empires.append({
+        var empire: Dictionary = {
             "id": i,
             "name": entry[0],
             "short": entry[1],
@@ -110,7 +114,9 @@ func _build_empires(existing_rosters: Array) -> void:
             "is_user": i == USER_EMPIRE,
             "training_points": 0,
             "money": 0,
-        })
+        }
+        Rosters.ensure_coaches(empire, rng, Rosters.team_rating(players))
+        empires.append(empire)
 
 func _build_territories() -> void:
     territories.clear()
@@ -193,6 +199,14 @@ func restore(data: Dictionary) -> void:
         copy["money"] = int(copy.get("money", 0))
         copy["color"] = Color(str(copy["color"]))
         copy["players"] = SaveGame.normalize_players(copy.get("players", []))
+        if copy.get("coaches") is Dictionary:
+            var coaches: Dictionary = copy["coaches"]
+            for role in coaches.keys():
+                var c: Dictionary = coaches[role]
+                c["rating"] = int(c.get("rating", 60))
+                c["name"] = str(c.get("name", "Coach"))
+        else:
+            Rosters.ensure_coaches(copy, rng, Rosters.team_rating(copy["players"]))
         empires.append(copy)
 
     territories.clear()
