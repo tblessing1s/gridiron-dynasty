@@ -53,7 +53,7 @@ Eliminated players fast-forward through the remaining weeks (results shown as a 
 | Academy | +1 training point | rookie potential range +5 | — |
 | Stadium | — | — | Home crowd: attacker throw accuracy −10% |
 | Mines | +money | +money | — |
-| Highlands | — | — | Fatigue accrues 2× (favours deep benches) |
+| Highlands | — | — | Fatigue accrues 2× (favours fresh, well-rested rosters) |
 | Capital | +1 training point | draft class quality bonus | Home crowd |
 
 ### 4.2 Attacking
@@ -94,9 +94,9 @@ The battle is 7-a-side football on a short field. The line of scrimmage is the f
 
 Before the battle:
 
-- Both 5-man lineups and benches shown.
+- Both 7-man lineups shown, with fatigue on each player.
 - Stakes printed plainly: *WIN: capture Ironvale + raid one player. LOSE: lose Harbor, raid.*
-- Player sets the starting five (bench a fatigued player) and can set the franchise tag (section 7.2).
+- Player can set the franchise tag (section 7.2). There is no lineup decision: all seven play.
 - Territory modifiers shown as icons.
 
 ### 5.4 An offensive play
@@ -151,7 +151,7 @@ Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are 
 
 ### 6.1 Roster
 
-**7 starters**, everyone playing both ways. Whether the roster carries bench players beyond the seven is an open question (see section 13); the test build fields exactly seven.
+Exactly **7 players, no bench**. All seven start and everyone plays both ways. A raid always costs a starter, and there is nowhere to hide a tired player — that is the point.
 
 | Slot | Offense | Defense | Key stats |
 |---|---|---|---|
@@ -165,7 +165,7 @@ Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are 
 
 Three linemen a side make the pocket a real contest: each rusher fights his own blocker, and the pocket lasts until the first one wins.
 
-Bench players sub in for fatigued starters. There are no injuries; fatigue is the only wear mechanic, so a thin bench means tired starters, never an empty slot.
+There are no injuries and no substitutions; fatigue is the only wear mechanic. A tired player plays worse, never sits. Rest weeks are the only relief.
 
 ### 6.2 Stats
 
@@ -240,7 +240,7 @@ One trait slot per player, unlocked by crossing a milestone (once per player per
 
 ### 8.6 Fatigue
 
-- Fatigue accrues per battle and per play; a fatigued player has reduced Speed and Power. Rest weeks and bench time recover it.
+- Fatigue accrues per battle and per play; a fatigued player has reduced Speed and Power. Only rest weeks recover it, so attacking every week wears the whole roster down.
 - No injuries. Players are never unavailable; the cost of overuse is a worse player, not a missing one.
 
 ## 9. Offseason
@@ -315,4 +315,3 @@ Each phase is playable on its own.
 - Money: is the contract system worth the complexity, or is aging alone enough to break up super-teams?
 - Whether AI empires should raid each other with the same rules (yes by default; makes the league evolve without the player).
 - Number of empires (12) vs. session length target (30–60 min per season).
-- Bench: with seven starters, does the roster stay at exactly seven (fatigue has no relief; every raid costs a starter), or grow to nine with two bench spots? Affects protection math in 7.2.
