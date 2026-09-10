@@ -85,7 +85,7 @@ func _build_world() -> void:
     # A close, top-down camera that follows the ball instead of showing the
     # whole 100-yard field at once, so players read clearly at Tecmo-Bowl scale.
     camera = Camera2D.new()
-    camera.zoom = Vector2(0.55, 0.55)
+    camera.zoom = Vector2(1.8, 1.8)
     camera.position_smoothing_enabled = true
     camera.position_smoothing_speed = 6.0
     camera.limit_left = int(GameConstants.FIELD_RECT.position.x)
