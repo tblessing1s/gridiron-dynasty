@@ -13,6 +13,8 @@ const RAIDED_LOYALTY: float = 0.75
 static func can_take(team: Dictionary, index: int, tag_index: int, season_number: int) -> bool:
     if index == tag_index:
         return false
+    if season_number < 0:
+        return true
     var player: Dictionary = team["players"][index]
     return int(player.get("rookie_season", -1)) != season_number
 

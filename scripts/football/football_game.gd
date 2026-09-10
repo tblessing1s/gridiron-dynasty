@@ -503,6 +503,10 @@ func _on_card_selected(index: int) -> void:
     else:
         defense_card = index
     scoreboard.hide_cards()
+    if mode == BattleSettings.Mode.SIM:
+        scoreboard.set_read("")
+        _resolve_sim_play()
+        return
     _setup_formation()
     state = PlayState.PRE_SNAP
 
@@ -583,6 +587,52 @@ func _snap() -> void:
         _bump(1, i, "plays")
     scoreboard.set_read("")
     scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], _shortest_pocket()])
+
+# SIM mode: skip the real-time snap/pocket/throw sequence and resolve the
+# called cards with the same stat math the auto-resolver uses, one down at a
+# time, crediting a plausible player for the aftermath's XP report.
+func _resolve_sim_play() -> void:
+    var offense: Dictionary = teams[offense_team]
+    var defense: Dictionary = teams[1 - offense_team]
+    var attacker_penalty: bool = home_crowd_active and offense_team == attacker_team
+    var outcome: Dictionary = BattleSim.resolve_single_play(offense, defense, offense_card, defense_card, attacker_penalty, rng)
+    current_carrier = null
+    for i in range(battle_stats[offense_team].size()):
+        _bump(offense_team, i, "plays")
+        _bump(1 - offense_team, i, "plays")
+
+    var yards: int = int(outcome["yards"])
+    var result: String = str(outcome["result"])
+    var turnover: bool = bool(outcome["turnover"])
+    var scorer_index: int = 1 if PlayBook.OFFENSE_IS_RUN[offense_card] else (2 if rng.randf() < 0.5 else 3)
+    var scores_touchdown: bool = not turnover and ball_yard + yards >= GameConstants.FIELD_YARDS
+
+    match result:
+        "RUN":
+            _bump(offense_team, 1, "yards", maxi(yards, 0))
+            _bump(1 - offense_team, 1, "tackles")
+        "SACK":
+            _bump(1 - offense_team, Rosters.LINE_START + rng.randi_range(0, Rosters.LINE_SIZE - 1), "sacks")
+        "PASS":
+            _bump(offense_team, 0, "completions")
+            _bump(offense_team, scorer_index, "catches")
+            _bump(offense_team, scorer_index, "yards", maxi(yards, 0))
+        "INTERCEPTED":
+            _bump(1 - offense_team, 0, "interceptions")
+        _:
+            pass
+
+    if scores_touchdown:
+        _bump(offense_team, scorer_index, "touchdowns")
+        _score_touchdown()
+        return
+    if turnover:
+        var spot_yard: int = clampi(ball_yard, 1, GameConstants.FIELD_YARDS - 1)
+        _end_possession(GameConstants.FIELD_YARDS - spot_yard, "%s at the %d" % [result, spot_yard])
+        return
+    var counts_yards: bool = result != "INCOMPLETE"
+    var end_x: float = play_start_x + float(yards) * GameConstants.PIXELS_PER_YARD
+    _finish_play(end_x, counts_yards, result)
 
 func _handoff(carrier) -> void:
     current_carrier = carrier

@@ -47,6 +47,13 @@ static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerat
 
     return {"home_score": scores[0], "away_score": scores[1], "log": log}
 
+# Resolves one offensive play in isolation, for the SIM battle mode: call a
+# card, get this same card/stat math back as a single result instead of the
+# real-time snap/pocket/throw sequence. attacker_penalty is home_crowd_at
+# AND this offense is the battle's attacker (mirrors resolve()'s own check).
+static func resolve_single_play(offense: Dictionary, defense: Dictionary, offense_card: int, defense_card: int, attacker_penalty: bool, rng: RandomNumberGenerator) -> Dictionary:
+    return _resolve_play(offense, defense, offense_card, defense_card, rng, attacker_penalty)
+
 static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_yard: int, rng: RandomNumberGenerator, attacker_penalty: bool) -> Dictionary:
     var yard: int = start_yard
     var down: int = 1
