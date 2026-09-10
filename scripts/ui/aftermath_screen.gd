@@ -16,7 +16,7 @@ func _ready() -> void:
     layer = 110
 
 # xp_report: Array of {team, index, gains} entries, already applied.
-func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, log: Array, xp_report: Array, user_stats: Array, auto_resolved: bool, subtitle_text: String) -> void:
+func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, log: Array, xp_report: Array, user_stats: Array, auto_resolved: bool, subtitle_text: String, fatigue_multiplier: float = 1.0) -> void:
     if root != null:
         root.queue_free()
     root = Control.new()
@@ -97,6 +97,8 @@ func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, lo
 
     var fatigue_header: Label = _label(Vector2(640, 500), Vector2(580, 24), 15)
     fatigue_header.text = "%s FATIGUE" % home["short"]
+    if fatigue_multiplier > 1.0:
+        fatigue_header.text += " (Highlands: fatigue x%.0f)" % fatigue_multiplier
     fatigue_header.modulate = Color(1, 1, 1, 0.6)
     root.add_child(fatigue_header)
 
@@ -109,7 +111,7 @@ func setup(home: Dictionary, away: Dictionary, scores: Array, user_won: bool, lo
         var name_label: Label = _label(Vector2(x, fy), Vector2(90, 20), 13)
         name_label.text = str(home_players[i]["name"])
         root.add_child(name_label)
-        var bars: int = BattleXp.fatigue_bars(user_stats[i]) if i < user_stats.size() else 0
+        var bars: int = BattleXp.fatigue_bars(user_stats[i], fatigue_multiplier) if i < user_stats.size() else 0
         for b in range(BattleXp.MAX_FATIGUE_BARS):
             var segment: ColorRect = ColorRect.new()
             segment.position = Vector2(x + 82.0 + float(b) * 12.0, fy + 5.0)

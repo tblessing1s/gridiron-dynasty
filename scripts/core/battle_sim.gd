@@ -8,8 +8,12 @@ const Rosters = preload("res://scripts/core/rosters.gd")
 # and stat edges as the live battle, without animating anything.
 
 const MAX_POSSESSIONS: int = 20
+# Stadium/Capital home crowd: the attacker (home, here) throws worse on the road.
+const HOME_CROWD_COMPLETION_FACTOR: float = 0.85
 
-static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+# home is always the attacker, away the defender; home_crowd is true when the
+# territory being fought over is a Stadium or Capital (season.home_crowd_at).
+static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerator, home_crowd: bool = false) -> Dictionary:
     var teams: Array = [home, away]
     var scores: Array[int] = [0, 0]
     var log: Array[String] = []
@@ -19,7 +23,7 @@ static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerat
     var total: int = GameConstants.POSSESSIONS_PER_TEAM * 2
 
     while true:
-        var outcome: Dictionary = _resolve_possession(teams[offense], teams[1 - offense], start_yard, rng)
+        var outcome: Dictionary = _resolve_possession(teams[offense], teams[1 - offense], start_yard, rng, home_crowd and offense == 0)
         if outcome["touchdown"]:
             scores[offense] += 7
             start_yard = GameConstants.MIDFIELD_YARD
@@ -43,7 +47,7 @@ static func resolve(home: Dictionary, away: Dictionary, rng: RandomNumberGenerat
 
     return {"home_score": scores[0], "away_score": scores[1], "log": log}
 
-static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_yard: int, rng: RandomNumberGenerator) -> Dictionary:
+static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_yard: int, rng: RandomNumberGenerator, attacker_penalty: bool) -> Dictionary:
     var yard: int = start_yard
     var down: int = 1
     var yards_to_go: int = GameConstants.FIRST_DOWN_YARDS
@@ -52,7 +56,7 @@ static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_
         plays += 1
         var offense_card: int = PlayBook.ai_offense_card(down, yards_to_go, rng)
         var defense_card: int = PlayBook.ai_defense_card(down, yards_to_go, rng)
-        var play: Dictionary = _resolve_play(offense, defense, offense_card, defense_card, rng)
+        var play: Dictionary = _resolve_play(offense, defense, offense_card, defense_card, rng, attacker_penalty)
         if play["turnover"]:
             return {"touchdown": false, "end_yard": yard, "summary": "%s at the %d (%d plays)" % [play["result"], yard, plays]}
         var yards: int = int(play["yards"])
@@ -70,7 +74,7 @@ static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_
             return {"touchdown": false, "end_yard": yard, "summary": "turnover on downs at the %d (%d plays)" % [yard, plays]}
     return {"touchdown": false, "end_yard": yard, "summary": "stalled at the %d" % yard}
 
-static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card: int, defense_card: int, rng: RandomNumberGenerator) -> Dictionary:
+static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card: int, defense_card: int, rng: RandomNumberGenerator, attacker_penalty: bool) -> Dictionary:
     var multiplier: float = PlayBook.matchup_multiplier(offense_card, defense_card)
     var op: Array = offense["players"]
     var dp: Array = defense["players"]
@@ -103,6 +107,8 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
         deviation_yards = 7.0
         interception_chance = 0.07
     completion = clampf(completion * (0.75 + 0.25 * multiplier) * pass_factor, 0.1, 0.92)
+    if attacker_penalty:
+        completion *= HOME_CROWD_COMPLETION_FACTOR
     if rng.randf() < completion:
         var pass_yards: int = maxi(int(round(rng.randfn(mean_yards, deviation_yards) * multiplier * pass_factor)), 1)
         return {"yards": pass_yards, "result": "PASS", "turnover": false}

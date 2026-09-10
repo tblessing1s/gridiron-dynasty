@@ -40,8 +40,8 @@ static func apply(player: Dictionary, stat_gains: Dictionary, rng: RandomNumberG
             kept[key] = actual
     return kept
 
-static func fatigue_bars(stats: Dictionary) -> int:
-    return clampi(int(stats["plays"]) / FATIGUE_PLAYS_PER_BAR, 0, MAX_FATIGUE_BARS)
+static func fatigue_bars(stats: Dictionary, fatigue_multiplier: float = 1.0) -> int:
+    return clampi(int(float(stats["plays"]) * fatigue_multiplier) / FATIGUE_PLAYS_PER_BAR, 0, MAX_FATIGUE_BARS)
 
 static func _add(result: Dictionary, key: String, amount: int) -> void:
     var capped: int = mini(amount, STAT_CAP_PER_BATTLE)

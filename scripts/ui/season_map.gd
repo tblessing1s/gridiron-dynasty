@@ -245,7 +245,7 @@ func _refresh() -> void:
         selected_target = -1
 
     week_label.text = "SEASON %d  •  WEEK %d of %d" % [season.number, mini(season.week, season.MAX_WEEKS), season.MAX_WEEKS]
-    empire_label.text = "%s • %d territories • roster %d" % [user_team["name"], season.owned_by(season.USER_EMPIRE).size(), Rosters.team_overall(user_team)]
+    empire_label.text = "%s • %d territories • roster %d • %d TP • $%d" % [user_team["name"], season.owned_by(season.USER_EMPIRE).size(), Rosters.team_overall(user_team), int(user_team.get("training_points", 0)), int(user_team.get("money", 0))]
     target_label.text = _target_text()
     attack_button.visible = not season.user_eliminated() and not season.over
     attack_button.disabled = selected_target < 0

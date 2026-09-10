@@ -49,13 +49,22 @@ After the battle, an **aftermath screen** shows the result, the border bar fille
 - XP and raids persist across the season; **CONTINUE SEASON** on the menu resumes it, including a battle you left mid-way.
 - The season ends when one empire is left or after week 12; the largest empire wins. If you are eliminated you can sim the remaining weeks.
 
+### Territory resources
+
+Every territory has a resource, and it now does something:
+
+- **Academy** and **Capital** each pay the holder 1 training point per week (shown next to your empire's name on the map, alongside your banked money). Nothing spends training points yet — that lands with the traits/training-points feature.
+- **Mines** pay money instead, same weekly cadence. Nothing spends money yet either — that's for the future contract system.
+- **Stadium** and **Capital** territories give the defender a home crowd: the attacker's throws scatter wider (live battles) or complete less often (auto-resolve) in the battle fought there. The matchup screen only shows the "Home crowd" chip when it applies.
+- **Highlands** territories double how fast fatigue bars fill in the battle fought there (shown on the aftermath screen), rewarding a rested roster.
+
 ## Offseason and draft
 
 When a season ends, **OFFSEASON** runs three steps:
 
 1. **Aging.** Every player gets a year older. Under 24 they grow fast toward a hidden per-stat potential; 24–28 they creep up; 29–31 they decline (Speed first); 32+ they decline hard and roll to retire. Retirees are replaced by a journeyman free agent at the same slot. Morale hits from raids clear here.
-2. **Draft.** One round, first eliminated picks first, the champion picks last. An 18-rookie class with a scout grade (A+ to D, slightly noisy) instead of visible potential. Every pick must replace one of your players at the rookie's slot — the roster stays at seven — so drafting is also a cut. AI empires pick for ceiling and cut their weakest at that slot. Your rookie cannot be raided for the whole coming season.
-3. **New map.** Everyone returns to their capital and outer territory, eliminated empires included; rosters carry over; tags reset.
+2. **Draft.** One round, first eliminated picks first, the champion picks last. An 18-rookie class with a scout grade (A+ to D, slightly noisy) instead of visible potential. Every pick must replace one of your players at the rookie's slot — the roster stays at seven — so drafting is also a cut. AI empires pick for ceiling and cut their weakest at that slot. Your rookie cannot be raided for the whole coming season. Drafting with an Academy in your holdings widens the rookie's hidden potential; drafting with more than one Capital (from eliminating rivals) sharpens their actual stats too, capped at that potential.
+3. **New map.** Everyone returns to their capital and outer territory, eliminated empires included; rosters carry over; tags reset (banked training points and money reset too — there's no way to spend them yet, so nothing carries).
 
 Players also carry an origin: raided players grow slower for good (each XP point is kept three times in four), so raiding builds win-now teams and drafting builds long-term ones. XP never lifts a stat above its potential.
 
@@ -63,7 +72,7 @@ Players also carry an origin: raided players grow slower for good (each XP point
 
 The dynasty autosaves to `user://dynasty.json` after every week, battle result, raid, draft pick, and new season — one save slot, no manual saving. The main menu loads it on startup and offers CONTINUE SEASON or CONTINUE OFFSEASON; a battle you left mid-way resumes at its matchup screen. NEW DYNASTY replaces the save. Quick battles are never saved. A save from a different version of the game is ignored rather than loaded.
 
-Territory resources are labels only for now; there are no contracts yet.
+Territory resources now pay training points/money and apply battle modifiers (see above); there are no contracts yet, and nothing spends the training points or money.
 
 ## Run
 

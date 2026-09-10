@@ -22,7 +22,7 @@ func _initialize() -> void:
         season.plan_week(-1)
         if season.has_user_battle():
             var b: Dictionary = season.user_battle
-            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng)
+            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng, season.home_crowd_at(int(b["territory"])))
             season.complete_user_battle(int(result["home_score"]) < int(result["away_score"]))
         else:
             season.resolve_week_without_user()

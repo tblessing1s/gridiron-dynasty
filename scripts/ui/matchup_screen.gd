@@ -80,7 +80,8 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
     chips.alignment = BoxContainer.ALIGNMENT_CENTER
     chips.add_theme_constant_override("separation", 24)
     root.add_child(chips)
-    chips.add_child(_chip("Home crowd: %s throw scatter +%d%%" % [home["short"], int(round((home_crowd_penalty - 1.0) * 100.0))]))
+    if home_crowd_penalty > 1.0:
+        chips.add_child(_chip("Home crowd: %s throw scatter +%d%%" % [attacker["short"], int(round((home_crowd_penalty - 1.0) * 100.0))]))
     chips.add_child(_chip(_weak_spot_text(home, away)))
 
     _add_column(40.0, "YOUR SEVEN", home, Rosters.SLOT_TYPES, locked_tag_index < 0, locked_tag_index)

@@ -46,7 +46,7 @@ func _initialize() -> void:
 
     # Keep playing on the loaded season: finish the pending battle and the season.
     var b: Dictionary = SeasonState.battle
-    var result: Dictionary = BattleSim.resolve(loaded.empire(int(b["attacker"])), loaded.empire(int(b["defender"])), loaded.rng)
+    var result: Dictionary = BattleSim.resolve(loaded.empire(int(b["attacker"])), loaded.empire(int(b["defender"])), loaded.rng, loaded.home_crowd_at(int(b["territory"])))
     loaded.complete_user_battle(int(result["home_score"]) > int(result["away_score"]))
     SeasonState.battle = {}
     _play_weeks(loaded, 40)
@@ -111,7 +111,7 @@ func _play_weeks(season, count: int) -> void:
         season.plan_week(target)
         if season.has_user_battle():
             var b: Dictionary = season.user_battle
-            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng)
+            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng, season.home_crowd_at(int(b["territory"])))
             var attacker_won: bool = int(result["home_score"]) > int(result["away_score"])
             var user_is_attacker: bool = int(b["attacker"]) == 0
             season.complete_user_battle(attacker_won if user_is_attacker else not attacker_won)
