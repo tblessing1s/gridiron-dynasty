@@ -5,6 +5,7 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 var line_of_scrimmage_x: float = GameConstants.STARTING_LOS_X
 var first_down_x: float = GameConstants.STARTING_LOS_X + (10.0 * GameConstants.PIXELS_PER_YARD)
 var route_previews: Array[PackedVector2Array] = []
+var left_end_zone_text: String = "HAWKS"
 
 func _ready() -> void:
     z_index = -10
@@ -23,6 +24,10 @@ func clear_route_previews() -> void:
     route_previews.clear()
     queue_redraw()
 
+func set_end_zone_labels(left_text: String) -> void:
+    left_end_zone_text = left_text
+    queue_redraw()
+
 func _draw() -> void:
     var rect: Rect2 = GameConstants.FIELD_RECT
     draw_rect(rect, Color("17653a"), true)
@@ -33,16 +38,17 @@ func _draw() -> void:
     draw_line(Vector2(GameConstants.LEFT_GOAL_X, GameConstants.FIELD_TOP), Vector2(GameConstants.LEFT_GOAL_X, GameConstants.FIELD_BOTTOM), Color.WHITE, 4.0)
     draw_line(Vector2(GameConstants.RIGHT_GOAL_X, GameConstants.FIELD_TOP), Vector2(GameConstants.RIGHT_GOAL_X, GameConstants.FIELD_BOTTOM), Color.WHITE, 4.0)
 
-    for yard in range(5, 100, 5):
+    for yard in range(5, GameConstants.FIELD_YARDS, 5):
         var x: float = GameConstants.LEFT_GOAL_X + float(yard) * GameConstants.PIXELS_PER_YARD
         var width: float = 1.0
         var alpha: float = 0.3
         if yard % 10 == 0:
             width = 3.0
             alpha = 0.6
+            _draw_centered_text(Vector2(x, GameConstants.FIELD_BOTTOM - 28.0), str(yard), 16)
         draw_line(Vector2(x, GameConstants.FIELD_TOP), Vector2(x, GameConstants.FIELD_BOTTOM), Color(1.0, 1.0, 1.0, alpha), width)
 
-    for yard in range(1, 100):
+    for yard in range(1, GameConstants.FIELD_YARDS):
         var x: float = GameConstants.LEFT_GOAL_X + float(yard) * GameConstants.PIXELS_PER_YARD
         draw_line(Vector2(x, 330.0), Vector2(x, 340.0), Color(1.0, 1.0, 1.0, 0.55), 1.0)
         draw_line(Vector2(x, 440.0), Vector2(x, 450.0), Color(1.0, 1.0, 1.0, 0.55), 1.0)
@@ -59,7 +65,7 @@ func _draw() -> void:
             var target: Vector2 = route[route.size() - 1]
             draw_circle(target, 6.0, Color(0.72, 0.9, 1.0, 0.82), false, 2.0)
 
-    _draw_centered_text(Vector2(90.0, 390.0), "HAWKS", 20)
+    _draw_centered_text(Vector2(90.0, 390.0), left_end_zone_text, 20)
     _draw_centered_text(Vector2(1190.0, 390.0), "TD", 24)
 
 func _draw_centered_text(pos: Vector2, text: String, font_size: int) -> void:

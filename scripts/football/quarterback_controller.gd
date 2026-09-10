@@ -8,16 +8,16 @@ signal aim_cancelled
 var aiming: bool = false
 var aim_start: Vector2 = Vector2.ZERO
 var can_throw: bool = true
+var input_enabled: bool = false
 const MAX_DRAG: float = 260.0
 const MIN_THROW_DRAG: float = 35.0
 
 func _ready() -> void:
-    body_color = Color("2f77c7")
     label_text = "QB"
     super()
 
 func _unhandled_input(event: InputEvent) -> void:
-    if not can_throw:
+    if not input_enabled or not can_throw:
         return
 
     if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -51,12 +51,14 @@ func _begin_aim(world_pos: Vector2) -> void:
         aim_started.emit()
         aim_updated.emit(Vector2.RIGHT, 0.0)
 
+# Slingshot aim: the ball flies opposite to the pull, so the player drags
+# away from the receiver they want to hit.
 func _update_aim(world_pos: Vector2) -> void:
     var drag: Vector2 = world_pos - aim_start
     var distance: float = minf(drag.length(), MAX_DRAG)
     if distance <= 0.001:
         return
-    aim_updated.emit(drag.normalized(), distance / MAX_DRAG)
+    aim_updated.emit(-drag.normalized(), distance / MAX_DRAG)
 
 func _release_aim(world_pos: Vector2) -> void:
     var drag: Vector2 = world_pos - aim_start
@@ -64,13 +66,19 @@ func _release_aim(world_pos: Vector2) -> void:
     if drag.length() < MIN_THROW_DRAG:
         aim_cancelled.emit()
         return
-    var direction: Vector2 = drag.normalized()
+    var direction: Vector2 = -drag.normalized()
     var strength: float = clampf(drag.length() / MAX_DRAG, 0.25, 1.0)
     can_throw = false
     throw_requested.emit(direction, strength)
+
+func cancel_aim() -> void:
+    if aiming:
+        aiming = false
+        aim_cancelled.emit()
 
 func reset_for_play(pos: Vector2) -> void:
     global_position = pos
     velocity = Vector2.ZERO
     aiming = false
     can_throw = true
+    input_enabled = false

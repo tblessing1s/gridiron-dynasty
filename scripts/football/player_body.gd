@@ -8,10 +8,28 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 @export var move_speed: float = 180.0
 
 var active: bool = true
+var stats: Dictionary = {}
 
 func _ready() -> void:
     collision_layer = 0
     collision_mask = 0
+    queue_redraw()
+
+func apply_stats(new_stats: Dictionary) -> void:
+    stats = new_stats
+    _on_stats_applied()
+
+func _on_stats_applied() -> void:
+    pass
+
+func stat(key: String) -> int:
+    return int(stats.get(key, 50))
+
+func player_name() -> String:
+    return str(stats.get("name", label_text))
+
+func set_team_color(color: Color) -> void:
+    body_color = color
     queue_redraw()
 
 func _draw() -> void:

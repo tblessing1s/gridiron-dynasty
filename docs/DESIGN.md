@@ -105,19 +105,30 @@ Before the battle:
 2. **Read.** QB Awareness decides how much of the defence's card is revealed before the snap ("Defense is BLITZING" vs. nothing).
 3. **Snap.** Press and hold the QB. Receivers run the card's routes. Existing Phase 1 behaviour.
 4. **Pocket.** Blocker Power vs. Rusher Power sets pocket time (2–5 seconds). A collapsed pocket is a sack.
-5. **Throw.** Drag to aim, release. QB Skill sets accuracy cone; receiver Skill sets catch radius; CB Speed decides whether the ball is contested. Existing Phase 1 behaviour with stats layered in.
-6. **Run after catch.** Drag to steer. Runner Speed vs. pursuit Speed; runner Power vs. tackler Power gives a break-tackle chance.
+5. **Throw.** Pull away from the receiver you want (slingshot), watch the landing marker, release. QB Skill sets accuracy scatter; receiver Skill sets catch radius; defender Skill sets interception radius. The marker turns red when a defender is close to the landing spot.
+6. **Run after catch.** Automatic. Runner Speed vs. pursuit Speed; runner Power vs. tackler Power gives a break-tackle chance. Dragging takes over steering if the player wants it.
 7. Play ends on tackle, out of bounds, score, or incompletion. ~8 seconds.
 
 **Run plays** (Draw, Screen): hold the QB, release toward the RB to hand off, steer the RB. Blocker leads. Draw beats Blitz; Draw into Cover is stuffed.
 
 ### 5.5 A defensive play
 
-1. Choose a defensive card: Cover, Blitz, Spy.
-2. Choose one defender to control (default: Safety). The other four run the card's assignment on AI.
-3. At the snap, drag to steer the controlled defender. Controlled player's Awareness shows a faint arc of where the QB is looking.
+1. Choose a defensive card: Cover, Blitz, Spy. The Safety's Awareness decides whether you get a pre-snap read of the offense's look (run or pass).
+2. Watch. All five defenders run the card's assignment on AI. There is no live defensive control; the call is the whole decision.
 
-### 5.6 Play-call matrix
+### 5.6 Involvement modes
+
+The throw is the only moment where a human choice beats the AI, so it is the only live control. Everything else — runs, the run after the catch, the defense — plays itself, and the player can choose how involved to be:
+
+| Mode | Offense | Defense |
+|---|---|---|
+| Play | call the card, throw the ball (slingshot: pull away from the target, release) | call the card, watch |
+| Watch | call the card, AI throws | call the card, watch |
+| Auto-resolve | whole battle simulated with the same cards and stats; box score only | — |
+
+Draw and Screen are automatic in every mode. Steering the runner is optional in Play mode.
+
+### 5.7 Play-call matrix
 
 | | Cover | Blitz | Spy |
 |---|---|---|---|
@@ -128,11 +139,11 @@ Before the battle:
 
 The matrix is a bias, not a lock. Stats and player input decide the play.
 
-### 5.7 Auto-resolve
+### 5.8 Auto-resolve
 
 Any battle can be auto-resolved. The resolver runs the same play-call matrix and stat comparisons without the real-time step, producing a plausible box score. Used for AI-vs-AI battles every week and for the player when they choose to skip.
 
-### 5.8 Grid-tactics alternative
+### 5.9 Grid-tactics alternative
 
 Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are replaced with a turn-based grid: players move a Speed-based number of squares, contact triggers a Power roll, throws roll on Skill vs. distance and coverage. Deferred; the real-time version has the head start.
 
@@ -290,7 +301,7 @@ Save
 Each phase is playable on its own.
 
 - **Phase 1 (done).** Single drive: drag-to-throw, routes, defenders, downs, clock.
-- **Phase 2 — Border War.** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, border bar, play cards, RB/Blocker/Rusher, controlled defender, stats-driven physics, auto-resolve. Two hard-coded rosters.
+- **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters. Still to do: border bar, matchup screen, stakes scaling, balance pass.
 - **Phase 3 — Season.** Player/Empire/Territory/Season model, map screen, weekly attacks, AI empire behaviour, raid rules with protections, elimination, save/load. AI-vs-AI battles auto-resolve.
 - **Phase 4 — Dynasty.** Offseason: draft, aging, retirement, contracts, traits, training points, loyalty, history lines, season summary.
 - **Phase 5 — Polish.** Map reset rules, stakes scaling, territory modifiers, awards, balance passes on the play-call matrix and age curve.

@@ -4,6 +4,9 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 
 signal pass_finished(caught_by)
 signal pass_incomplete
+signal pass_intercepted(defender)
+
+const CATCHABLE_T: float = 0.72
 
 var start_position: Vector2 = Vector2.ZERO
 var end_position: Vector2 = Vector2.ZERO
@@ -11,24 +14,25 @@ var elapsed: float = 0.0
 var duration: float = 0.8
 var is_airborne: bool = false
 var receivers: Array = []
-var accuracy_radius: float = GameConstants.CATCH_RADIUS
+var defenders: Array = []
 var peak_height: float = 1.0
 
 func _ready() -> void:
     z_index = 20
     queue_redraw()
 
-func launch(origin: Vector2, direction: Vector2, strength: float, eligible_receivers: Array) -> void:
+func launch_to(origin: Vector2, target: Vector2, eligible_receivers: Array, covering_defenders: Array) -> void:
     start_position = origin
     global_position = origin
     receivers = eligible_receivers
+    defenders = covering_defenders
     elapsed = 0.0
     is_airborne = true
-    duration = lerpf(0.55, 1.15, strength)
-    var throw_distance: float = lerpf(165.0, 470.0, strength)
-    end_position = origin + direction * throw_distance
+    end_position = target
     end_position.x = clampf(end_position.x, GameConstants.LEFT_GOAL_X, GameConstants.RIGHT_GOAL_X + 40.0)
     end_position.y = clampf(end_position.y, GameConstants.FIELD_TOP, GameConstants.FIELD_BOTTOM)
+    var distance: float = origin.distance_to(end_position)
+    duration = lerpf(0.5, 1.2, clampf(distance / 470.0, 0.0, 1.0))
     visible = true
 
 func _process(delta: float) -> void:
@@ -41,19 +45,51 @@ func _process(delta: float) -> void:
     peak_height = 1.0 + sin(t * PI) * 0.65
     queue_redraw()
 
-    if t > 0.42:
-        for receiver in receivers:
-            if is_instance_valid(receiver) and receiver.global_position.distance_to(global_position) <= accuracy_radius:
-                _complete(receiver)
+    # The ball is only catchable on the way down. Whoever is closest to it
+    # wins the arrival: a defender who beats the receiver to the spot picks
+    # it off or knocks it down.
+    if t >= CATCHABLE_T:
+        var receiver = _nearest_within(receivers, true)
+        var defender = _nearest_within(defenders, false)
+        if receiver != null:
+            var receiver_distance: float = receiver.global_position.distance_to(global_position)
+            if defender != null and defender.global_position.distance_to(global_position) < receiver_distance:
+                if defender.global_position.distance_to(global_position) <= defender.intercept_radius * 0.6:
+                    _intercept(defender)
+                else:
+                    _finish_incomplete()
                 return
+            _complete(receiver)
+            return
+        if defender != null and defender.global_position.distance_to(global_position) <= defender.intercept_radius * 0.6:
+            _intercept(defender)
+            return
 
     if t >= 1.0:
         _finish_incomplete()
+
+func _nearest_within(candidates: Array, use_catch_radius: bool):
+    var nearest = null
+    var nearest_distance: float = INF
+    for candidate in candidates:
+        if not is_instance_valid(candidate):
+            continue
+        var radius: float = candidate.catch_radius if use_catch_radius else candidate.intercept_radius
+        var distance: float = candidate.global_position.distance_to(global_position)
+        if distance <= radius and distance < nearest_distance:
+            nearest_distance = distance
+            nearest = candidate
+    return nearest
 
 func _complete(receiver) -> void:
     is_airborne = false
     visible = false
     pass_finished.emit(receiver)
+
+func _intercept(defender) -> void:
+    is_airborne = false
+    visible = false
+    pass_intercepted.emit(defender)
 
 func _finish_incomplete() -> void:
     is_airborne = false
