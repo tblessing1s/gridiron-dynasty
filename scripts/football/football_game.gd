@@ -14,6 +14,11 @@ const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
 const MatchupScreenScript = preload("res://scripts/ui/matchup_screen.gd")
+const AftermathScreenScript = preload("res://scripts/ui/aftermath_screen.gd")
+const RaidScreenScript = preload("res://scripts/ui/raid_screen.gd")
+const BattleXp = preload("res://scripts/core/battle_xp.gd")
+const RaidRules = preload("res://scripts/core/raid_rules.gd")
+const PlayerRow = preload("res://scripts/ui/player_row.gd")
 
 # Border War battle: 7-a-side, three possessions each, four downs, no kicks.
 # The user always calls the plays. In PLAY mode they also throw the ball on
@@ -41,7 +46,13 @@ var world_view: Node2D
 var field
 var scoreboard
 var matchup_screen
+var aftermath_screen
+var raid_screen
 var franchise_tag_index: int = -1
+var ai_tag_index: int = -1
+var battle_stats: Array = [[], []]
+var auto_resolved: bool = false
+var last_user_won: bool = false
 var camera: Camera2D
 var qb
 var running_back
@@ -88,11 +99,73 @@ func _ready() -> void:
 
 func _show_matchup() -> void:
     state = PlayState.BATTLE_OVER
-    scoreboard.hide_result()
     scoreboard.hide_cards()
     scoreboard.visible = false
-    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER)
+    aftermath_screen.visible = false
+    raid_screen.visible = false
+    franchise_tag_index = -1
+    ai_tag_index = _best_player_index(teams[1])
+    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER, ai_tag_index)
     matchup_screen.visible = true
+
+func _show_aftermath() -> void:
+    state = PlayState.BATTLE_OVER
+    scoreboard.hide_cards()
+    scoreboard.visible = false
+    last_user_won = scores[0] > scores[1]
+    var xp_report: Array = []
+    if not auto_resolved:
+        for team_index in range(2):
+            var players: Array = teams[team_index]["players"]
+            for i in range(players.size()):
+                var gains: Dictionary = BattleXp.gains(battle_stats[team_index][i])
+                if gains.is_empty():
+                    continue
+                BattleXp.apply(players[i], gains)
+                xp_report.append({"team": team_index, "index": i, "gains": gains})
+    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved)
+    aftermath_screen.visible = true
+
+func _show_raid() -> void:
+    aftermath_screen.visible = false
+    if last_user_won:
+        raid_screen.setup(teams[0], teams[1], ai_tag_index, true)
+    else:
+        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false)
+    raid_screen.visible = true
+
+func _on_raid_confirmed(take_index: int, give_index: int) -> void:
+    if last_user_won:
+        RaidRules.apply(teams[0], teams[1], take_index, give_index)
+    else:
+        RaidRules.apply(teams[1], teams[0], take_index, give_index)
+
+func _best_player_index(team: Dictionary) -> int:
+    var players: Array = team["players"]
+    var best: int = 0
+    var best_overall: int = -1
+    for i in range(players.size()):
+        var overall: int = PlayerRow.overall(players[i])
+        if overall > best_overall:
+            best_overall = overall
+            best = i
+    return best
+
+func _reset_battle_stats() -> void:
+    battle_stats = [[], []]
+    for team_index in range(2):
+        var players: Array = teams[team_index]["players"]
+        for i in range(players.size()):
+            battle_stats[team_index].append(BattleXp.empty_stats())
+
+func _bump(team_index: int, player_index: int, key: String, amount: int = 1) -> void:
+    if player_index < 0 or player_index >= battle_stats[team_index].size():
+        return
+    var stats: Dictionary = battle_stats[team_index][player_index]
+    stats[key] = int(stats[key]) + amount
+
+func _defense_team() -> int:
+    return 1 - offense_team
 
 func _on_matchup_play() -> void:
     matchup_screen.visible = false
@@ -176,8 +249,6 @@ func _build_world() -> void:
 
     scoreboard = ScoreboardScript.new()
     scoreboard.card_selected.connect(_on_card_selected)
-    scoreboard.restart_requested.connect(_on_restart)
-    scoreboard.back_to_menu_requested.connect(_back_to_menu)
     add_child(scoreboard)
 
     matchup_screen = MatchupScreenScript.new()
@@ -187,6 +258,19 @@ func _build_world() -> void:
     matchup_screen.tag_changed.connect(_on_tag_changed)
     add_child(matchup_screen)
 
+    aftermath_screen = AftermathScreenScript.new()
+    aftermath_screen.raid_requested.connect(_show_raid)
+    aftermath_screen.menu_requested.connect(_back_to_menu)
+    aftermath_screen.visible = false
+    add_child(aftermath_screen)
+
+    raid_screen = RaidScreenScript.new()
+    raid_screen.raid_confirmed.connect(_on_raid_confirmed)
+    raid_screen.play_again_requested.connect(_show_matchup)
+    raid_screen.menu_requested.connect(_back_to_menu)
+    raid_screen.visible = false
+    add_child(raid_screen)
+
 # ---------------------------------------------------------------- battle flow
 
 func _start_battle() -> void:
@@ -195,7 +279,8 @@ func _start_battle() -> void:
     offense_team = USER_TEAM
     possession_number = 1
     possession_log.clear()
-    scoreboard.hide_result()
+    auto_resolved = false
+    _reset_battle_stats()
     _refresh_score()
     _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[USER_TEAM]["short"], TOTAL_POSSESSIONS])
 
@@ -205,11 +290,12 @@ func _auto_resolve() -> void:
     scores[1] = int(result["away_score"])
     _refresh_score()
     scoreboard.update_possession("AUTO-RESOLVED")
-    scoreboard.hide_cards()
-    scoreboard.set_message("Battle simulated")
-    state = PlayState.BATTLE_OVER
-    var log: Array = result["log"]
-    scoreboard.show_result(_result_title(), "\n".join(PackedStringArray(log)))
+    auto_resolved = true
+    _reset_battle_stats()
+    possession_log.clear()
+    for line in result["log"]:
+        possession_log.append(str(line))
+    _show_aftermath()
 
 func _start_possession(start_yard: int, intro: String) -> void:
     down = 1
@@ -229,15 +315,20 @@ func _assign_teams() -> void:
 
     qb.apply_stats(offense_players[0])
     qb.set_team_color(offense_color)
+    qb.player_index = 0
     running_back.apply_stats(offense_players[1])
     running_back.set_team_color(offense_color)
+    running_back.player_index = 1
     receivers[0].apply_stats(offense_players[2])
     receivers[0].set_team_color(offense_color)
+    receivers[0].player_index = 2
     receivers[1].apply_stats(offense_players[3])
     receivers[1].set_team_color(offense_color)
+    receivers[1].player_index = 3
     for i in range(blockers.size()):
         blockers[i].apply_stats(offense_players[Rosters.LINE_START + i])
         blockers[i].set_team_color(offense_color)
+        blockers[i].player_index = Rosters.LINE_START + i
 
     var roles: Array[int] = [DefenderScript.Role.SAFETY, DefenderScript.Role.LINEBACKER, DefenderScript.Role.CORNER, DefenderScript.Role.CORNER]
     var labels: Array[String] = ["S", "LB", "CB", "CB"]
@@ -250,6 +341,7 @@ func _assign_teams() -> void:
         defender.label_text = labels[i]
         defender.apply_stats(defense_players[i])
         defender.set_team_color(defense_color)
+        defender.player_index = i
         defender.quarterback = qb
         defender.blockers = blockers
         defender.blocker = blockers[1]
@@ -417,6 +509,9 @@ func _snap() -> void:
         running_back.start_route(routes[2])
     for defender in defenders:
         defender.set_ai_enabled(true)
+    for i in range(battle_stats[0].size()):
+        _bump(0, i, "plays")
+        _bump(1, i, "plays")
     scoreboard.set_read("")
     scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], _shortest_pocket()])
 
@@ -462,6 +557,7 @@ func _check_sack() -> bool:
             continue
         if defender.global_position.distance_to(qb.global_position) <= GameConstants.TACKLE_RADIUS + 4.0:
             qb.cancel_aim()
+            _bump(_defense_team(), defender.player_index, "sacks")
             _finish_play(qb.global_position.x, true, "SACKED by %s" % defender.player_name())
             return true
     return false
@@ -513,6 +609,9 @@ func _launch(target: Vector2) -> void:
     aim_line.visible = false
     aim_line.clear_points()
     throw_target.hide_marker()
+    for i in range(Rosters.LINE_SIZE):
+        if not _rusher(i).rush_released():
+            _bump(offense_team, blockers[i].player_index, "pocket_wins")
 
     football.launch_to(qb.global_position + Vector2(20.0, 0.0), landing, catchers, defenders)
 
@@ -554,6 +653,7 @@ func _update_run(delta: float) -> void:
             tackle_grace_seconds = 0.2
             scoreboard.set_message("%s breaks the tackle!" % current_carrier.player_name())
             return
+        _bump(_defense_team(), defender.player_index, "tackles")
         _finish_play(current_carrier.global_position.x, true, "TACKLED by %s" % defender.player_name())
         return
 
@@ -609,6 +709,8 @@ func _on_pass_caught(receiver) -> void:
     current_carrier = receiver
     tackle_grace_seconds = 0.25
     receiver.become_ball_carrier()
+    _bump(offense_team, receiver.player_index, "catches")
+    _bump(offense_team, qb.player_index, "completions")
     state = PlayState.LIVE_RUN
     for catcher in catchers:
         if catcher != receiver:
@@ -629,6 +731,7 @@ func _on_pass_intercepted(defender) -> void:
     if state != PlayState.LIVE_PASS:
         return
     var spot_yard: int = clampi(int(round((defender.global_position.x - GameConstants.LEFT_GOAL_X) / GameConstants.PIXELS_PER_YARD)), 1, GameConstants.FIELD_YARDS - 1)
+    _bump(_defense_team(), defender.player_index, "interceptions")
     _end_possession(GameConstants.FIELD_YARDS - spot_yard, "INTERCEPTED by %s at the %d" % [defender.player_name(), spot_yard])
 
 func _on_carrier_out_of_bounds(carrier) -> void:
@@ -647,6 +750,9 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
     var gained_yards: int = 0
     if counts_yards:
         gained_yards = int(round((end_x - play_start_x) / GameConstants.PIXELS_PER_YARD))
+    if current_carrier != null and gained_yards > 0:
+        _bump(offense_team, current_carrier.player_index, "yards", gained_yards)
+        _bump(offense_team, current_carrier.player_index, "plays")
     var reached_first_down: bool = counts_yards and end_x >= first_down_x
 
     ball_yard = clampi(ball_yard + gained_yards, 1, GameConstants.FIELD_YARDS - 1)
@@ -676,6 +782,10 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
 func _score_touchdown() -> void:
     scores[offense_team] += 7
     _refresh_score()
+    if current_carrier != null:
+        var gained_yards: int = int(round((GameConstants.RIGHT_GOAL_X - play_start_x) / GameConstants.PIXELS_PER_YARD))
+        _bump(offense_team, current_carrier.player_index, "yards", maxi(gained_yards, 0))
+        _bump(offense_team, current_carrier.player_index, "touchdowns")
     _end_possession(GameConstants.MIDFIELD_YARD, "TOUCHDOWN")
 
 func _end_possession(next_start_yard: int, reason: String) -> void:
@@ -712,7 +822,7 @@ func _end_possession(next_start_yard: int, reason: String) -> void:
 func _end_battle() -> void:
     state = PlayState.BATTLE_OVER
     scoreboard.update_possession("FINAL")
-    scoreboard.show_result(_result_title(), "\n".join(PackedStringArray(possession_log)))
+    _show_aftermath()
 
 func _freeze_players() -> void:
     qb.can_throw = false
@@ -775,15 +885,8 @@ func _possession_text() -> String:
         return "SUDDEN DEATH • %s BALL" % offense["short"]
     return "POSS %d/%d • %s BALL" % [possession_number, TOTAL_POSSESSIONS, offense["short"]]
 
-func _result_title() -> String:
-    var winner: int = 0 if scores[0] > scores[1] else 1
-    return "%s WIN %d – %d" % [teams[winner]["short"], scores[winner], scores[1 - winner]]
-
 func _refresh_score() -> void:
     scoreboard.update_score(scores[0], scores[1], teams[0]["short"], teams[1]["short"])
-
-func _on_restart() -> void:
-    _show_matchup()
 
 # Frontier as a 0..1 fraction from the user's side of the map. Both teams
 # attack to the right on screen, so the away team's yardage is mirrored.

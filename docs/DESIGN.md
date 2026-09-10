@@ -303,8 +303,8 @@ Save
 Each phase is playable on its own.
 
 - **Phase 1 (done).** Single drive: drag-to-throw, routes, defenders, downs, clock.
-- **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters, matchup screen, border bar, home-crowd modifier. Still to do: stakes scaling, balance pass.
-- **Phase 3 — Season.** Player/Empire/Territory/Season model, map screen, weekly attacks, AI empire behaviour, raid rules with protections, elimination, save/load. AI-vs-AI battles auto-resolve.
+- **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters, matchup screen, border bar, home-crowd modifier, aftermath with battle XP and fatigue, the raid with franchise-tag protection and the morale penalty (rosters persist for the session). Still to do: stakes scaling, balance pass.
+- **Phase 3 — Season.** Player/Empire/Territory/Season model, map screen, weekly attacks, AI empire behaviour, rookie protection and tag locking for the raid, elimination, save/load. AI-vs-AI battles auto-resolve.
 - **Phase 4 — Dynasty.** Offseason: draft, aging, retirement, contracts, traits, training points, loyalty, history lines, season summary.
 - **Phase 5 — Polish.** Map reset rules, stakes scaling, territory modifiers, awards, balance passes on the play-call matrix and age curve.
 

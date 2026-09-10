@@ -2,8 +2,6 @@ extends CanvasLayer
 
 const BorderBarScript = preload("res://scripts/ui/border_bar.gd")
 
-signal back_to_menu_requested
-signal restart_requested
 signal card_selected(index: int)
 
 const DOWN_NAMES: Array[String] = ["", "1ST", "2ND", "3RD", "4TH"]
@@ -21,11 +19,6 @@ var border_bar
 var read_label: Label
 var card_bar: ColorRect
 var card_buttons: Array = []
-var overlay: ColorRect
-var overlay_title: Label
-var overlay_detail: Label
-var restart_button: Button
-var menu_button: Button
 
 func _ready() -> void:
     layer = 100
@@ -82,38 +75,6 @@ func _build_ui() -> void:
         card_bar.add_child(button)
         card_buttons.append(button)
 
-    overlay = ColorRect.new()
-    overlay.color = Color(0.02, 0.03, 0.04, 0.92)
-    overlay.position = Vector2(240, 120)
-    overlay.size = Vector2(800, 480)
-    overlay.visible = false
-    add_child(overlay)
-
-    overlay_title = _make_label(Vector2(40, 30), Vector2(720, 70), 38)
-    overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    overlay.add_child(overlay_title)
-
-    overlay_detail = _make_label(Vector2(60, 110), Vector2(680, 270), 19)
-    overlay_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    overlay_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    overlay.add_child(overlay_detail)
-
-    restart_button = Button.new()
-    restart_button.text = "PLAY AGAIN"
-    restart_button.position = Vector2(170, 400)
-    restart_button.size = Vector2(220, 56)
-    restart_button.add_theme_font_size_override("font_size", 20)
-    restart_button.pressed.connect(func() -> void: restart_requested.emit())
-    overlay.add_child(restart_button)
-
-    menu_button = Button.new()
-    menu_button.text = "MAIN MENU"
-    menu_button.position = Vector2(410, 400)
-    menu_button.size = Vector2(220, 56)
-    menu_button.add_theme_font_size_override("font_size", 20)
-    menu_button.pressed.connect(func() -> void: back_to_menu_requested.emit())
-    overlay.add_child(menu_button)
-
 func _make_label(pos: Vector2, size: Vector2, font_size: int) -> Label:
     var label: Label = Label.new()
     label.position = pos
@@ -168,11 +129,3 @@ func show_cards(names: Array, hints: Array) -> void:
 
 func hide_cards() -> void:
     card_bar.visible = false
-
-func show_result(title: String, detail: String) -> void:
-    overlay_title.text = title
-    overlay_detail.text = detail
-    overlay.visible = true
-
-func hide_result() -> void:
-    overlay.visible = false

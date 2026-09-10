@@ -7,6 +7,8 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 
 const LINE_START: int = 4
 const LINE_SIZE: int = 3
+const SLOT_TYPES: Array[String] = ["QB", "RB", "WR", "WR", "BL", "BL", "BL"]
+const DEFENSE_SLOT_TYPES: Array[String] = ["S", "LB", "CB", "CB", "X", "X", "X"]
 
 static func hawks() -> Dictionary:
     return {

@@ -2,17 +2,14 @@ extends CanvasLayer
 
 const Rosters = preload("res://scripts/core/rosters.gd")
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
+const PlayerRow = preload("res://scripts/ui/player_row.gd")
 
 signal play_requested
 signal auto_requested
 signal menu_requested
 signal tag_changed(index: int)
 
-const STAT_KEYS: Array[String] = ["speed", "power", "skill", "awareness"]
-const STAT_LABELS: Array[String] = ["SPD", "PWR", "SKL", "AWR"]
-const OFFENSE_SLOTS: Array[String] = ["QB", "RB", "WR", "WR", "BL", "BL", "BL"]
-const DEFENSE_SLOTS: Array[String] = ["S", "LB", "CB", "CB", "X", "X", "X"]
-const ROW_HEIGHT: float = 46.0
+const ROW_STEP: float = 46.0
 const COLUMN_WIDTH: float = 596.0
 const LINEUP_TOP: float = 236.0
 
@@ -23,10 +20,11 @@ var root: Control
 func _ready() -> void:
     layer = 110
 
-func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: float) -> void:
+func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: float, away_tag_index: int) -> void:
     if root != null:
         root.queue_free()
     tag_buttons.clear()
+    tag_index = -1
 
     root = Control.new()
     root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -49,7 +47,7 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
     subtitle.position = Vector2(0, 62)
     subtitle.size = Vector2(1280, 36)
     subtitle.add_theme_font_size_override("normal_font_size", 22)
-    subtitle.text = "[center][color=#%s]%s[/color] attack [color=#%s]%s[/color][/center]" % [_hex(home["color"]), home["name"], _hex(away["color"]), away["name"]]
+    subtitle.text = "[center][color=#%s]%s[/color] attack [color=#%s]%s[/color][/center]" % [home["color"].to_html(false), home["name"], away["color"].to_html(false), away["name"]]
     root.add_child(subtitle)
 
     var stakes: Label = _label(Vector2(140, 104), Vector2(1000, 30), 18)
@@ -67,11 +65,11 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
     chips.add_child(_chip("Home crowd: %s throw scatter +%d%%" % [home["short"], int(round((home_crowd_penalty - 1.0) * 100.0))]))
     chips.add_child(_chip(_weak_spot_text(home, away)))
 
-    _add_column(40.0, "YOUR SEVEN", home, OFFENSE_SLOTS, true)
-    _add_column(644.0, "%s SEVEN" % away["short"], away, DEFENSE_SLOTS, false)
+    _add_column(40.0, "YOUR SEVEN", home, Rosters.SLOT_TYPES, true, -1)
+    _add_column(644.0, "%s SEVEN" % away["short"], away, Rosters.DEFENSE_SLOT_TYPES, false, away_tag_index)
 
-    var hint: Label = _label(Vector2(40, LINEUP_TOP + 7.0 * ROW_HEIGHT + 4.0), Vector2(596, 24), 14)
-    hint.text = "TAG one player: they cannot be raided this season."
+    var hint: Label = _label(Vector2(40, LINEUP_TOP + 7.0 * ROW_STEP + 4.0), Vector2(596, 24), 14)
+    hint.text = "TAG one player: they cannot be raided if you lose."
     hint.modulate = Color(1, 1, 1, 0.6)
     root.add_child(hint)
 
@@ -100,7 +98,7 @@ func setup(home: Dictionary, away: Dictionary, mode: int, home_crowd_penalty: fl
 
     _refresh_tag_buttons()
 
-func _add_column(x: float, header_text: String, team: Dictionary, slots: Array[String], tag_enabled: bool) -> void:
+func _add_column(x: float, header_text: String, team: Dictionary, slots: Array[String], tag_enabled: bool, tagged_index: int) -> void:
     var color: Color = team["color"]
     var header: Label = _label(Vector2(x, LINEUP_TOP - 30.0), Vector2(COLUMN_WIDTH, 26), 16)
     header.text = header_text
@@ -109,50 +107,17 @@ func _add_column(x: float, header_text: String, team: Dictionary, slots: Array[S
 
     var players: Array = team["players"]
     for i in range(players.size()):
-        _add_row(x, LINEUP_TOP + float(i) * ROW_HEIGHT, i, players[i], slots[i], color, tag_enabled)
-
-func _add_row(x: float, y: float, index: int, player: Dictionary, slot: String, color: Color, tag_enabled: bool) -> void:
-    var row: ColorRect = ColorRect.new()
-    row.color = Color(1, 1, 1, 0.06)
-    row.position = Vector2(x, y)
-    row.size = Vector2(COLUMN_WIDTH, ROW_HEIGHT - 4.0)
-    root.add_child(row)
-
-    var slot_label: Label = _label(Vector2(10, 11), Vector2(44, 22), 14)
-    slot_label.text = slot
-    slot_label.modulate = color.lightened(0.4)
-    row.add_child(slot_label)
-
-    var name_label: Label = _label(Vector2(56, 9), Vector2(130, 26), 17)
-    name_label.text = str(player["name"])
-    row.add_child(name_label)
-
-    for k in range(STAT_KEYS.size()):
-        var stat_x: float = 190.0 + float(k) * 84.0
-        var value: int = int(player[STAT_KEYS[k]])
-        var stat_label: Label = _label(Vector2(stat_x, 3), Vector2(60, 18), 12)
-        stat_label.text = "%s %d" % [STAT_LABELS[k], value]
-        stat_label.modulate = Color(1, 1, 1, 0.75)
-        row.add_child(stat_label)
-
-        var track: ColorRect = ColorRect.new()
-        track.color = Color(0, 0, 0, 0.45)
-        track.position = Vector2(stat_x, 24)
-        track.size = Vector2(72, 9)
-        row.add_child(track)
-
-        var fill: ColorRect = ColorRect.new()
-        fill.color = color.lightened(0.2)
-        fill.position = Vector2(stat_x, 24)
-        fill.size = Vector2(72.0 * float(value) / 100.0, 9)
-        row.add_child(fill)
-
-    if tag_enabled:
-        var tag: Button = _button("TAG", Vector2(64, 30), 13)
-        tag.position = Vector2(COLUMN_WIDTH - 72.0, 6)
-        tag.pressed.connect(_on_tag_pressed.bind(index))
-        row.add_child(tag)
-        tag_buttons.append(tag)
+        var row: ColorRect = PlayerRow.build(players[i], slots[i], color, COLUMN_WIDTH, false)
+        row.position = Vector2(x, LINEUP_TOP + float(i) * ROW_STEP)
+        root.add_child(row)
+        if tag_enabled:
+            var tag: Button = _button("TAG", Vector2(64, 30), 13)
+            tag.position = Vector2(COLUMN_WIDTH - 72.0, 6)
+            tag.pressed.connect(_on_tag_pressed.bind(i))
+            row.add_child(tag)
+            tag_buttons.append(tag)
+        elif i == tagged_index:
+            PlayerRow.add_chip(row, "TAGGED", COLUMN_WIDTH - 70.0, Color(1, 0.85, 0.4, 0.9))
 
 func _on_tag_pressed(index: int) -> void:
     tag_index = -1 if tag_index == index else index
@@ -200,6 +165,3 @@ func _button(text: String, size: Vector2, font_size: int) -> Button:
     button.size = size
     button.add_theme_font_size_override("font_size", font_size)
     return button
-
-func _hex(color: Color) -> String:
-    return color.to_html(false)

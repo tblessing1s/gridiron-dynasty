@@ -37,7 +37,9 @@ Offense cards: Slants, Deep Shot, Draw, Screen. Defense cards: Cover, Blitz, Spy
 
 Every battle opens on a **matchup screen**: both seven-man lineups with stat bars, the stakes, a home-crowd modifier (the attacker's throw scatter is +25%), a scouting line naming the weakest blocker-vs-rusher matchup and its pocket time, and a TAG button to mark one player as your franchise tag. From there you play, watch, or auto-resolve. During the battle a **border bar** under the score shows the line of scrimmage as the frontier between the two empires and moves live with the ball carrier.
 
-The stakes line and franchise tag are display-only for now; territory capture and raids arrive with the season layer.
+After the battle, an **aftermath screen** shows the result, the border bar filled to the winner's color, the possession log, the XP each player earned from what they actually did (catches and completions grow Skill, yardage grows Speed, tackles, pocket wins and sacks grow Power, interceptions and touchdowns grow Awareness; capped at +2 per stat per battle), and your team's fatigue. Then the **raid**: if you won, tap any unprotected Forge player to take him and pick one of yours at the same slot to send back; if you lost, the Forge take your best unprotected player and you watch. Both movers arrive with a -5 morale hit to every stat. The franchise tag you set on the matchup screen is the one player they cannot take. Roster changes and XP carry into the next battle for as long as the game scene is open; going back to the main menu resets both teams.
+
+Territory capture is still display-only until the season map exists.
 
 ## Run
 
