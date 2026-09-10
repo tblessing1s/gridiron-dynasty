@@ -35,6 +35,10 @@ The main menu offers three ways to play the same battle, for testing which one f
 
 Offense cards: Slants, Deep Shot, Draw, Screen. Defense cards: Cover, Blitz, Spy. Draw and Screen are automatic in every mode.
 
+Every battle opens on a **matchup screen**: both seven-man lineups with stat bars, the stakes, a home-crowd modifier (the attacker's throw scatter is +25%), a scouting line naming the weakest blocker-vs-rusher matchup and its pocket time, and a TAG button to mark one player as your franchise tag. From there you play, watch, or auto-resolve. During the battle a **border bar** under the score shows the line of scrimmage as the frontier between the two empires and moves live with the ball carrier.
+
+The stakes line and franchise tag are display-only for now; territory capture and raids arrive with the season layer.
+
 ## Run
 
 1. Open this folder in Godot 4.x.

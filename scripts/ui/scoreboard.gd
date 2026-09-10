@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const BorderBarScript = preload("res://scripts/ui/border_bar.gd")
+
 signal back_to_menu_requested
 signal restart_requested
 signal card_selected(index: int)
@@ -15,6 +17,7 @@ var situation_label: Label
 var possession_label: Label
 var message_label: Label
 var mode_label: Label
+var border_bar
 var read_label: Label
 var card_bar: ColorRect
 var card_buttons: Array = []
@@ -32,25 +35,30 @@ func _build_ui() -> void:
     var top_bar: ColorRect = ColorRect.new()
     top_bar.color = Color(0.03, 0.04, 0.05, 0.93)
     top_bar.position = Vector2(0, 0)
-    top_bar.size = Vector2(1280, 80)
+    top_bar.size = Vector2(1280, 108)
     add_child(top_bar)
 
-    score_label = _make_label(Vector2(28, 17), Vector2(400, 48), 20)
+    score_label = _make_label(Vector2(28, 10), Vector2(400, 40), 20)
     add_child(score_label)
 
-    situation_label = _make_label(Vector2(440, 17), Vector2(410, 48), 24)
+    situation_label = _make_label(Vector2(440, 8), Vector2(410, 40), 24)
     situation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     add_child(situation_label)
 
-    possession_label = _make_label(Vector2(860, 17), Vector2(392, 48), 20)
+    possession_label = _make_label(Vector2(860, 10), Vector2(392, 40), 20)
     possession_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
     add_child(possession_label)
 
-    message_label = _make_label(Vector2(240, 92), Vector2(800, 42), 21)
+    border_bar = BorderBarScript.new()
+    border_bar.position = Vector2(140, 62)
+    border_bar.size = Vector2(1000, 24)
+    add_child(border_bar)
+
+    message_label = _make_label(Vector2(240, 116), Vector2(800, 42), 21)
     message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     add_child(message_label)
 
-    mode_label = _make_label(Vector2(1000, 132), Vector2(260, 30), 16)
+    mode_label = _make_label(Vector2(1000, 150), Vector2(260, 30), 16)
     mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
     mode_label.modulate = Color(1, 1, 1, 0.7)
     add_child(mode_label)
@@ -128,6 +136,12 @@ func update_situation(down: int, yards_to_go: int, ball_yard: int) -> void:
 
 func update_possession(text: String) -> void:
     possession_label.text = text
+
+func setup_border(home: Dictionary, away: Dictionary) -> void:
+    border_bar.setup(home, away)
+
+func update_border(fraction: float) -> void:
+    border_bar.set_fraction(fraction)
 
 func set_mode_text(text: String) -> void:
     mode_label.text = text

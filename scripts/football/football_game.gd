@@ -13,6 +13,7 @@ const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
+const MatchupScreenScript = preload("res://scripts/ui/matchup_screen.gd")
 
 # Border War battle: 7-a-side, three possessions each, four downs, no kicks.
 # The user always calls the plays. In PLAY mode they also throw the ball on
@@ -29,6 +30,8 @@ const DRAW_HANDOFF_SECONDS: float = 0.35
 const CENTER_Y: float = (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5
 const LINE_SPACING: float = 46.0
 const DEFENDER_COUNT: int = 4 + Rosters.LINE_SIZE
+# The attacker plays away: the home crowd widens their throw scatter.
+const HOME_CROWD_SCATTER: float = 1.25
 
 var state: int = PlayState.CALLING
 var mode: int = BattleSettings.Mode.PLAY
@@ -37,6 +40,8 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var world_view: Node2D
 var field
 var scoreboard
+var matchup_screen
+var franchise_tag_index: int = -1
 var camera: Camera2D
 var qb
 var running_back
@@ -78,10 +83,29 @@ func _ready() -> void:
     teams = [Rosters.hawks(), Rosters.forge()]
     _build_world()
     scoreboard.set_mode_text("%s MODE" % BattleSettings.mode_name(mode))
-    if mode == BattleSettings.Mode.AUTO_RESOLVE:
-        _auto_resolve()
-    else:
-        _start_battle()
+    scoreboard.setup_border(teams[0], teams[1])
+    _show_matchup()
+
+func _show_matchup() -> void:
+    state = PlayState.BATTLE_OVER
+    scoreboard.hide_result()
+    scoreboard.hide_cards()
+    scoreboard.visible = false
+    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER)
+    matchup_screen.visible = true
+
+func _on_matchup_play() -> void:
+    matchup_screen.visible = false
+    scoreboard.visible = true
+    _start_battle()
+
+func _on_matchup_auto() -> void:
+    matchup_screen.visible = false
+    scoreboard.visible = true
+    _auto_resolve()
+
+func _on_tag_changed(index: int) -> void:
+    franchise_tag_index = index
 
 func _build_world() -> void:
     world_view = Node2D.new()
@@ -155,6 +179,13 @@ func _build_world() -> void:
     scoreboard.restart_requested.connect(_on_restart)
     scoreboard.back_to_menu_requested.connect(_back_to_menu)
     add_child(scoreboard)
+
+    matchup_screen = MatchupScreenScript.new()
+    matchup_screen.play_requested.connect(_on_matchup_play)
+    matchup_screen.auto_requested.connect(_on_matchup_auto)
+    matchup_screen.menu_requested.connect(_back_to_menu)
+    matchup_screen.tag_changed.connect(_on_tag_changed)
+    add_child(matchup_screen)
 
 # ---------------------------------------------------------------- battle flow
 
@@ -271,6 +302,7 @@ func _prepare_play(message: String = "") -> void:
 
     scoreboard.update_situation(down, yards_to_go, ball_yard)
     scoreboard.update_possession(_possession_text())
+    scoreboard.update_border(_frontier_fraction(line_of_scrimmage_x))
     _offer_cards()
     scoreboard.set_message(message if not message.is_empty() else "Call the play.")
 
@@ -468,6 +500,8 @@ func _throw_to(receiver) -> void:
 
 func _launch(target: Vector2) -> void:
     var scatter: float = Rosters.scatter_px(qb.stat("skill")) * rng.randf()
+    if _user_on_offense():
+        scatter *= HOME_CROWD_SCATTER
     var angle: float = rng.randf() * TAU
     var landing: Vector2 = target + Vector2(cos(angle), sin(angle)) * scatter
     landing.x = clampf(landing.x, GameConstants.LEFT_GOAL_X, GameConstants.RIGHT_GOAL_X + 40.0)
@@ -500,6 +534,7 @@ func _update_run(delta: float) -> void:
     if current_carrier == null or play_resolution_pending:
         return
     tackle_grace_seconds = maxf(tackle_grace_seconds - delta, 0.0)
+    scoreboard.update_border(_frontier_fraction(current_carrier.global_position.x))
 
     if current_carrier.global_position.x >= GameConstants.RIGHT_GOAL_X:
         _score_touchdown()
@@ -628,6 +663,7 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
         scoreboard.set_message("%s • %+d yards" % [result_text, gained_yards])
 
     scoreboard.update_situation(mini(down, 4), yards_to_go, ball_yard)
+    scoreboard.update_border(_frontier_fraction(line_of_scrimmage_x))
 
     if down > 4:
         _end_possession(GameConstants.FIELD_YARDS - ball_yard, "turnover on downs at the %d" % ball_yard)
@@ -747,10 +783,14 @@ func _refresh_score() -> void:
     scoreboard.update_score(scores[0], scores[1], teams[0]["short"], teams[1]["short"])
 
 func _on_restart() -> void:
-    if mode == BattleSettings.Mode.AUTO_RESOLVE:
-        _auto_resolve()
-    else:
-        _start_battle()
+    _show_matchup()
+
+# Frontier as a 0..1 fraction from the user's side of the map. Both teams
+# attack to the right on screen, so the away team's yardage is mirrored.
+func _frontier_fraction(world_x: float) -> float:
+    var yard: float = clampf((world_x - GameConstants.LEFT_GOAL_X) / GameConstants.PIXELS_PER_YARD, 0.0, float(GameConstants.FIELD_YARDS))
+    var fraction: float = yard / float(GameConstants.FIELD_YARDS)
+    return fraction if _user_on_offense() else 1.0 - fraction
 
 func _back_to_menu() -> void:
     get_tree().change_scene_to_file("res://scenes/main.tscn")
