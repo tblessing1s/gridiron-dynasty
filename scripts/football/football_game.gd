@@ -2,6 +2,8 @@ extends Node2D
 
 const GameConstants = preload("res://scripts/core/game_constants.gd")
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
+const SeasonState = preload("res://scripts/core/season_state.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 const PlayBook = preload("res://scripts/core/play_book.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
@@ -13,8 +15,14 @@ const DefenderScript = preload("res://scripts/football/defender_ai.gd")
 const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
+const MatchupScreenScript = preload("res://scripts/ui/matchup_screen.gd")
+const AftermathScreenScript = preload("res://scripts/ui/aftermath_screen.gd")
+const RaidScreenScript = preload("res://scripts/ui/raid_screen.gd")
+const BattleXp = preload("res://scripts/core/battle_xp.gd")
+const RaidRules = preload("res://scripts/core/raid_rules.gd")
+const PlayerRow = preload("res://scripts/ui/player_row.gd")
 
-# Border War battle: 5-a-side, three possessions each, four downs, no kicks.
+# Border War battle: 7-a-side, three possessions each, four downs, no kicks.
 # The user always calls the plays. In PLAY mode they also throw the ball on
 # their own passing plays; runs, the run after the catch, and the defense all
 # play themselves.
@@ -27,6 +35,10 @@ const AUTO_SNAP_DELAY: float = 0.8
 const SCREEN_RELEASE_SECONDS: float = 0.45
 const DRAW_HANDOFF_SECONDS: float = 0.35
 const CENTER_Y: float = (GameConstants.FIELD_TOP + GameConstants.FIELD_BOTTOM) * 0.5
+const LINE_SPACING: float = 46.0
+const DEFENDER_COUNT: int = 4 + Rosters.LINE_SIZE
+# The attacker plays away: the home crowd widens their throw scatter.
+const HOME_CROWD_SCATTER: float = 1.25
 
 var state: int = PlayState.CALLING
 var mode: int = BattleSettings.Mode.PLAY
@@ -35,10 +47,22 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var world_view: Node2D
 var field
 var scoreboard
+var matchup_screen
+var aftermath_screen
+var raid_screen
+var franchise_tag_index: int = -1
+var ai_tag_index: int = -1
+var season_mode: bool = false
+var season_reported: bool = false
+var attacker_team: int = 0
+var context: Dictionary = {}
+var battle_stats: Array = [[], []]
+var auto_resolved: bool = false
+var last_user_won: bool = false
 var camera: Camera2D
 var qb
 var running_back
-var blocker
+var blockers: Array = []
 var receivers: Array = []
 var catchers: Array = []
 var defenders: Array = []
@@ -73,13 +97,150 @@ var ai_decision_seconds: float = 1.2
 func _ready() -> void:
     rng.randomize()
     mode = BattleSettings.mode
-    teams = [Rosters.hawks(), Rosters.forge()]
+    _load_teams()
     _build_world()
     scoreboard.set_mode_text("%s MODE" % BattleSettings.mode_name(mode))
-    if mode == BattleSettings.Mode.AUTO_RESOLVE:
-        _auto_resolve()
+    scoreboard.setup_border(teams[0], teams[1])
+    _show_matchup()
+
+# In a season the battle comes from the map: the user's empire against the
+# other side of the pending battle, attacker decided by the map. Otherwise
+# it is the quick battle, Hawks attacking Forge.
+func _load_teams() -> void:
+    var battle: Dictionary = SeasonState.battle
+    if not battle.is_empty() and SeasonState.season != null:
+        var season = SeasonState.season
+        var attacker_id: int = int(battle["attacker"])
+        var defender_id: int = int(battle["defender"])
+        var user_is_attacker: bool = attacker_id == season.USER_EMPIRE
+        var opponent: Dictionary = season.empire(defender_id if user_is_attacker else attacker_id)
+        var target: Dictionary = season.territory(int(battle["territory"]))
+        var origin_id: int = int(battle["origin"])
+        season_mode = true
+        teams = [season.user(), opponent]
+        attacker_team = 0 if user_is_attacker else 1
+        context = {
+            "territory": target["name"],
+            "origin": season.territory(origin_id)["name"] if origin_id >= 0 else "your border",
+            "user_is_attacker": user_is_attacker,
+            "target_is_capital": bool(target["is_capital"]),
+            "origin_is_capital": origin_id >= 0 and bool(season.territory(origin_id)["is_capital"]),
+        }
     else:
-        _start_battle()
+        season_mode = false
+        teams = [Rosters.hawks(), Rosters.forge()]
+        attacker_team = 0
+        context = {"territory": "Ironvale", "origin": "Harbor Point", "user_is_attacker": true, "target_is_capital": false, "origin_is_capital": false}
+
+func _show_matchup() -> void:
+    state = PlayState.BATTLE_OVER
+    scoreboard.hide_cards()
+    scoreboard.visible = false
+    aftermath_screen.visible = false
+    raid_screen.visible = false
+    season_reported = false
+    franchise_tag_index = int(teams[0].get("tag_index", -1))
+    ai_tag_index = int(teams[1].get("tag_index", -1))
+    if ai_tag_index < 0:
+        ai_tag_index = _best_player_index(teams[1])
+        if season_mode:
+            teams[1]["tag_index"] = ai_tag_index
+    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER, ai_tag_index, context, franchise_tag_index if season_mode else -1)
+    matchup_screen.visible = true
+
+func _show_aftermath() -> void:
+    state = PlayState.BATTLE_OVER
+    scoreboard.hide_cards()
+    scoreboard.visible = false
+    last_user_won = scores[0] > scores[1]
+    var xp_report: Array = []
+    if not auto_resolved:
+        for team_index in range(2):
+            var players: Array = teams[team_index]["players"]
+            for i in range(players.size()):
+                var gains: Dictionary = BattleXp.gains(battle_stats[team_index][i])
+                if gains.is_empty():
+                    continue
+                var kept: Dictionary = BattleXp.apply(players[i], gains, rng)
+                if kept.is_empty():
+                    continue
+                xp_report.append({"team": team_index, "index": i, "gains": kept})
+    var subtitle: String = "Territory captured" if last_user_won else "Border territory lost"
+    if season_mode and not season_reported:
+        season_reported = true
+        SeasonState.season.complete_user_battle(last_user_won)
+        SeasonState.battle = {}
+        SaveGame.save()
+        if not SeasonState.season.log.is_empty():
+            subtitle = str(SeasonState.season.log[0])
+    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved, subtitle)
+    aftermath_screen.visible = true
+
+func _show_raid() -> void:
+    aftermath_screen.visible = false
+    var after_text: String = "BACK TO MAP" if season_mode else "PLAY AGAIN"
+    var season_number: int = int(SeasonState.season.number) if season_mode else -1
+    if last_user_won:
+        raid_screen.setup(teams[0], teams[1], ai_tag_index, true, after_text, season_number)
+    else:
+        raid_screen.setup(teams[1], teams[0], franchise_tag_index, false, after_text, season_number)
+    raid_screen.visible = true
+
+func _after_raid() -> void:
+    if season_mode:
+        get_tree().change_scene_to_file("res://scenes/map.tscn")
+    else:
+        _show_matchup()
+
+func _on_raid_confirmed(take_index: int, give_index: int) -> void:
+    if last_user_won:
+        RaidRules.apply(teams[0], teams[1], take_index, give_index)
+    else:
+        RaidRules.apply(teams[1], teams[0], take_index, give_index)
+    if season_mode:
+        SaveGame.save()
+
+func _best_player_index(team: Dictionary) -> int:
+    var players: Array = team["players"]
+    var best: int = 0
+    var best_overall: int = -1
+    for i in range(players.size()):
+        var overall: int = PlayerRow.overall(players[i])
+        if overall > best_overall:
+            best_overall = overall
+            best = i
+    return best
+
+func _reset_battle_stats() -> void:
+    battle_stats = [[], []]
+    for team_index in range(2):
+        var players: Array = teams[team_index]["players"]
+        for i in range(players.size()):
+            battle_stats[team_index].append(BattleXp.empty_stats())
+
+func _bump(team_index: int, player_index: int, key: String, amount: int = 1) -> void:
+    if player_index < 0 or player_index >= battle_stats[team_index].size():
+        return
+    var stats: Dictionary = battle_stats[team_index][player_index]
+    stats[key] = int(stats[key]) + amount
+
+func _defense_team() -> int:
+    return 1 - offense_team
+
+func _on_matchup_play() -> void:
+    matchup_screen.visible = false
+    scoreboard.visible = true
+    _start_battle()
+
+func _on_matchup_auto() -> void:
+    matchup_screen.visible = false
+    scoreboard.visible = true
+    _auto_resolve()
+
+func _on_tag_changed(index: int) -> void:
+    franchise_tag_index = index
+    if season_mode:
+        teams[0]["tag_index"] = index
 
 func _build_world() -> void:
     world_view = Node2D.new()
@@ -105,8 +266,11 @@ func _build_world() -> void:
     qb.aim_cancelled.connect(_on_aim_cancelled)
     world_view.add_child(qb)
 
-    blocker = BlockerScript.new()
-    world_view.add_child(blocker)
+    for i in range(Rosters.LINE_SIZE):
+        var lineman = BlockerScript.new()
+        lineman.lead_offset = Vector2(38.0, _line_offset_y(i))
+        world_view.add_child(lineman)
+        blockers.append(lineman)
 
     for i in range(2):
         var receiver = ReceiverScript.new()
@@ -122,7 +286,7 @@ func _build_world() -> void:
 
     catchers = [receivers[0], receivers[1], running_back]
 
-    for i in range(5):
+    for i in range(DEFENDER_COUNT):
         var defender = DefenderScript.new()
         world_view.add_child(defender)
         defenders.append(defender)
@@ -147,33 +311,53 @@ func _build_world() -> void:
 
     scoreboard = ScoreboardScript.new()
     scoreboard.card_selected.connect(_on_card_selected)
-    scoreboard.restart_requested.connect(_on_restart)
-    scoreboard.back_to_menu_requested.connect(_back_to_menu)
     add_child(scoreboard)
+
+    matchup_screen = MatchupScreenScript.new()
+    matchup_screen.play_requested.connect(_on_matchup_play)
+    matchup_screen.auto_requested.connect(_on_matchup_auto)
+    matchup_screen.menu_requested.connect(_back_to_menu)
+    matchup_screen.tag_changed.connect(_on_tag_changed)
+    add_child(matchup_screen)
+
+    aftermath_screen = AftermathScreenScript.new()
+    aftermath_screen.raid_requested.connect(_show_raid)
+    aftermath_screen.menu_requested.connect(_back_to_menu)
+    aftermath_screen.visible = false
+    add_child(aftermath_screen)
+
+    raid_screen = RaidScreenScript.new()
+    raid_screen.raid_confirmed.connect(_on_raid_confirmed)
+    raid_screen.play_again_requested.connect(_after_raid)
+    raid_screen.menu_requested.connect(_back_to_menu)
+    raid_screen.visible = false
+    add_child(raid_screen)
 
 # ---------------------------------------------------------------- battle flow
 
 func _start_battle() -> void:
     scores[0] = 0
     scores[1] = 0
-    offense_team = USER_TEAM
+    offense_team = attacker_team
     possession_number = 1
     possession_log.clear()
-    scoreboard.hide_result()
+    auto_resolved = false
+    _reset_battle_stats()
     _refresh_score()
-    _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[USER_TEAM]["short"], TOTAL_POSSESSIONS])
+    _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[attacker_team]["short"], TOTAL_POSSESSIONS])
 
 func _auto_resolve() -> void:
-    var result: Dictionary = BattleSim.resolve(teams[0], teams[1], rng)
-    scores[0] = int(result["home_score"])
-    scores[1] = int(result["away_score"])
+    var result: Dictionary = BattleSim.resolve(teams[attacker_team], teams[1 - attacker_team], rng)
+    scores[attacker_team] = int(result["home_score"])
+    scores[1 - attacker_team] = int(result["away_score"])
     _refresh_score()
     scoreboard.update_possession("AUTO-RESOLVED")
-    scoreboard.hide_cards()
-    scoreboard.set_message("Battle simulated")
-    state = PlayState.BATTLE_OVER
-    var log: Array = result["log"]
-    scoreboard.show_result(_result_title(), "\n".join(PackedStringArray(log)))
+    auto_resolved = true
+    _reset_battle_stats()
+    possession_log.clear()
+    for line in result["log"]:
+        possession_log.append(str(line))
+    _show_aftermath()
 
 func _start_possession(start_yard: int, intro: String) -> void:
     down = 1
@@ -193,29 +377,42 @@ func _assign_teams() -> void:
 
     qb.apply_stats(offense_players[0])
     qb.set_team_color(offense_color)
+    qb.player_index = 0
     running_back.apply_stats(offense_players[1])
     running_back.set_team_color(offense_color)
+    running_back.player_index = 1
     receivers[0].apply_stats(offense_players[2])
     receivers[0].set_team_color(offense_color)
+    receivers[0].player_index = 2
     receivers[1].apply_stats(offense_players[3])
     receivers[1].set_team_color(offense_color)
-    blocker.apply_stats(offense_players[4])
-    blocker.set_team_color(offense_color)
+    receivers[1].player_index = 3
+    for i in range(blockers.size()):
+        blockers[i].apply_stats(offense_players[Rosters.LINE_START + i])
+        blockers[i].set_team_color(offense_color)
+        blockers[i].player_index = Rosters.LINE_START + i
 
-    var roles: Array[int] = [DefenderScript.Role.SAFETY, DefenderScript.Role.LINEBACKER, DefenderScript.Role.CORNER, DefenderScript.Role.CORNER, DefenderScript.Role.RUSHER]
-    var labels: Array[String] = ["S", "LB", "CB", "CB", "X"]
+    var roles: Array[int] = [DefenderScript.Role.SAFETY, DefenderScript.Role.LINEBACKER, DefenderScript.Role.CORNER, DefenderScript.Role.CORNER]
+    var labels: Array[String] = ["S", "LB", "CB", "CB"]
+    for i in range(Rosters.LINE_SIZE):
+        roles.append(DefenderScript.Role.RUSHER)
+        labels.append("X")
     for i in range(defenders.size()):
         var defender = defenders[i]
         defender.role = roles[i]
         defender.label_text = labels[i]
         defender.apply_stats(defense_players[i])
         defender.set_team_color(defense_color)
+        defender.player_index = i
         defender.quarterback = qb
-        defender.blocker = blocker
+        defender.blockers = blockers
+        defender.blocker = blockers[1]
         defender.spy_target = running_back
         defender.receivers = catchers
     defenders[2].covered_receiver = receivers[0]
     defenders[3].covered_receiver = receivers[1]
+    for i in range(Rosters.LINE_SIZE):
+        _rusher(i).blocker = blockers[i]
 
     for catcher in catchers:
         catcher.defenders = defenders
@@ -238,15 +435,16 @@ func _prepare_play(message: String = "") -> void:
 
     var los: float = line_of_scrimmage_x
     qb.reset_for_play(Vector2(los - 55.0, CENTER_Y))
-    blocker.reset_for_play(Vector2(los - 22.0, CENTER_Y))
     running_back.reset_for_play(Vector2(los - 100.0, CENTER_Y + 40.0))
     receivers[0].reset_for_play(Vector2(los - 4.0, 245.0))
     receivers[1].reset_for_play(Vector2(los - 4.0, 540.0))
     defenders[0].reset_for_play(Vector2(los + 170.0, CENTER_Y))
-    defenders[1].reset_for_play(Vector2(los + 70.0, CENTER_Y))
+    defenders[1].reset_for_play(Vector2(los + 95.0, CENTER_Y))
     defenders[2].reset_for_play(Vector2(los + 55.0, 245.0))
     defenders[3].reset_for_play(Vector2(los + 55.0, 540.0))
-    defenders[4].reset_for_play(Vector2(los + 22.0, CENTER_Y))
+    for i in range(Rosters.LINE_SIZE):
+        blockers[i].reset_for_play(Vector2(los - 22.0, CENTER_Y + _line_offset_y(i)))
+        _rusher(i).reset_for_play(Vector2(los + 22.0, CENTER_Y + _line_offset_y(i)))
     for defender in defenders:
         defender.line_x = los
 
@@ -258,6 +456,7 @@ func _prepare_play(message: String = "") -> void:
 
     scoreboard.update_situation(down, yards_to_go, ball_yard)
     scoreboard.update_possession(_possession_text())
+    scoreboard.update_border(_frontier_fraction(line_of_scrimmage_x))
     _offer_cards()
     scoreboard.set_message(message if not message.is_empty() else "Call the play.")
 
@@ -309,18 +508,23 @@ func _on_card_selected(index: int) -> void:
         scoreboard.set_message("%s called • snapping…" % called)
 
 func _setup_formation() -> void:
-    var pocket: float = Rosters.pocket_seconds(blocker.stat("power"), defenders[4].stat("power"))
+    # Each rusher fights his own blocker; the pocket lasts until the first
+    # one wins his matchup.
+    var shortest_pocket: float = INF
+    for i in range(Rosters.LINE_SIZE):
+        var pocket: float = Rosters.pocket_seconds(blockers[i].stat("power"), _rusher(i).stat("power"))
+        _rusher(i).pocket_seconds = pocket
+        shortest_pocket = minf(shortest_pocket, pocket)
     for defender in defenders:
         defender.assignment = defense_card
-        defender.pocket_seconds = pocket
         defender.offset_scale = 1.0
+    defenders[1].pocket_seconds = shortest_pocket * 0.6 + 0.3
     if defense_card == PlayBook.Defense.COVER:
         defenders[2].offset_scale = 0.7
         defenders[3].offset_scale = 0.7
     elif defense_card == PlayBook.Defense.BLITZ:
         defenders[2].offset_scale = 1.8
         defenders[3].offset_scale = 1.8
-        defenders[1].pocket_seconds = pocket * 0.6 + 0.3
     field.set_route_previews(_build_routes())
     ai_decision_seconds = Rosters.decision_seconds(qb.stat("awareness"))
 
@@ -367,14 +571,18 @@ func _snap() -> void:
         running_back.start_route(routes[2])
     for defender in defenders:
         defender.set_ai_enabled(true)
+    for i in range(battle_stats[0].size()):
+        _bump(0, i, "plays")
+        _bump(1, i, "plays")
     scoreboard.set_read("")
-    scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], defenders[4].pocket_seconds])
+    scoreboard.set_message("%s vs %s • %.1fs pocket" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], _shortest_pocket()])
 
 func _handoff(carrier) -> void:
     current_carrier = carrier
     carrier.become_ball_carrier()
     tackle_grace_seconds = 0.45
-    blocker.lead_for(carrier)
+    for lineman in blockers:
+        lineman.lead_for(carrier)
     for defender in defenders:
         defender.set_ball_carrier(carrier)
     qb.can_throw = false
@@ -411,6 +619,7 @@ func _check_sack() -> bool:
             continue
         if defender.global_position.distance_to(qb.global_position) <= GameConstants.TACKLE_RADIUS + 4.0:
             qb.cancel_aim()
+            _bump(_defense_team(), defender.player_index, "sacks")
             _finish_play(qb.global_position.x, true, "SACKED by %s" % defender.player_name())
             return true
     return false
@@ -449,6 +658,8 @@ func _throw_to(receiver) -> void:
 
 func _launch(target: Vector2) -> void:
     var scatter: float = Rosters.scatter_px(qb.stat("skill")) * rng.randf()
+    if offense_team == attacker_team:
+        scatter *= HOME_CROWD_SCATTER
     var angle: float = rng.randf() * TAU
     var landing: Vector2 = target + Vector2(cos(angle), sin(angle)) * scatter
     landing.x = clampf(landing.x, GameConstants.LEFT_GOAL_X, GameConstants.RIGHT_GOAL_X + 40.0)
@@ -460,6 +671,9 @@ func _launch(target: Vector2) -> void:
     aim_line.visible = false
     aim_line.clear_points()
     throw_target.hide_marker()
+    for i in range(Rosters.LINE_SIZE):
+        if not _rusher(i).rush_released():
+            _bump(offense_team, blockers[i].player_index, "pocket_wins")
 
     football.launch_to(qb.global_position + Vector2(20.0, 0.0), landing, catchers, defenders)
 
@@ -481,6 +695,7 @@ func _update_run(delta: float) -> void:
     if current_carrier == null or play_resolution_pending:
         return
     tackle_grace_seconds = maxf(tackle_grace_seconds - delta, 0.0)
+    scoreboard.update_border(_frontier_fraction(current_carrier.global_position.x))
 
     if current_carrier.global_position.x >= GameConstants.RIGHT_GOAL_X:
         _score_touchdown()
@@ -500,6 +715,7 @@ func _update_run(delta: float) -> void:
             tackle_grace_seconds = 0.2
             scoreboard.set_message("%s breaks the tackle!" % current_carrier.player_name())
             return
+        _bump(_defense_team(), defender.player_index, "tackles")
         _finish_play(current_carrier.global_position.x, true, "TACKLED by %s" % defender.player_name())
         return
 
@@ -555,11 +771,14 @@ func _on_pass_caught(receiver) -> void:
     current_carrier = receiver
     tackle_grace_seconds = 0.25
     receiver.become_ball_carrier()
+    _bump(offense_team, receiver.player_index, "catches")
+    _bump(offense_team, qb.player_index, "completions")
     state = PlayState.LIVE_RUN
     for catcher in catchers:
         if catcher != receiver:
             catcher.stop_route()
-    blocker.lead_for(receiver)
+    for lineman in blockers:
+        lineman.lead_for(receiver)
     for defender in defenders:
         defender.set_ball_carrier(receiver)
     var steer_hint: String = " • drag to steer" if _user_controls_offense() else ""
@@ -574,6 +793,7 @@ func _on_pass_intercepted(defender) -> void:
     if state != PlayState.LIVE_PASS:
         return
     var spot_yard: int = clampi(int(round((defender.global_position.x - GameConstants.LEFT_GOAL_X) / GameConstants.PIXELS_PER_YARD)), 1, GameConstants.FIELD_YARDS - 1)
+    _bump(_defense_team(), defender.player_index, "interceptions")
     _end_possession(GameConstants.FIELD_YARDS - spot_yard, "INTERCEPTED by %s at the %d" % [defender.player_name(), spot_yard])
 
 func _on_carrier_out_of_bounds(carrier) -> void:
@@ -592,6 +812,9 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
     var gained_yards: int = 0
     if counts_yards:
         gained_yards = int(round((end_x - play_start_x) / GameConstants.PIXELS_PER_YARD))
+    if current_carrier != null and gained_yards > 0:
+        _bump(offense_team, current_carrier.player_index, "yards", gained_yards)
+        _bump(offense_team, current_carrier.player_index, "plays")
     var reached_first_down: bool = counts_yards and end_x >= first_down_x
 
     ball_yard = clampi(ball_yard + gained_yards, 1, GameConstants.FIELD_YARDS - 1)
@@ -608,6 +831,7 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
         scoreboard.set_message("%s • %+d yards" % [result_text, gained_yards])
 
     scoreboard.update_situation(mini(down, 4), yards_to_go, ball_yard)
+    scoreboard.update_border(_frontier_fraction(line_of_scrimmage_x))
 
     if down > 4:
         _end_possession(GameConstants.FIELD_YARDS - ball_yard, "turnover on downs at the %d" % ball_yard)
@@ -620,6 +844,10 @@ func _finish_play(end_x: float, counts_yards: bool, result_text: String) -> void
 func _score_touchdown() -> void:
     scores[offense_team] += 7
     _refresh_score()
+    if current_carrier != null:
+        var gained_yards: int = int(round((GameConstants.RIGHT_GOAL_X - play_start_x) / GameConstants.PIXELS_PER_YARD))
+        _bump(offense_team, current_carrier.player_index, "yards", maxi(gained_yards, 0))
+        _bump(offense_team, current_carrier.player_index, "touchdowns")
     _end_possession(GameConstants.MIDFIELD_YARD, "TOUCHDOWN")
 
 func _end_possession(next_start_yard: int, reason: String) -> void:
@@ -656,7 +884,7 @@ func _end_possession(next_start_yard: int, reason: String) -> void:
 func _end_battle() -> void:
     state = PlayState.BATTLE_OVER
     scoreboard.update_possession("FINAL")
-    scoreboard.show_result(_result_title(), "\n".join(PackedStringArray(possession_log)))
+    _show_aftermath()
 
 func _freeze_players() -> void:
     qb.can_throw = false
@@ -666,7 +894,8 @@ func _freeze_players() -> void:
         catcher.stop_route()
         catcher.is_ball_carrier = false
         catcher.velocity = Vector2.ZERO
-    blocker.lead_for(null)
+    for lineman in blockers:
+        lineman.lead_for(null)
     for defender in defenders:
         defender.set_ai_enabled(false)
         defender.ball_carrier = null
@@ -680,6 +909,18 @@ func _freeze_players() -> void:
 
 func _user_on_offense() -> bool:
     return offense_team == USER_TEAM
+
+func _rusher(index: int):
+    return defenders[4 + index]
+
+func _line_offset_y(index: int) -> float:
+    return (float(index) - float(Rosters.LINE_SIZE - 1) * 0.5) * LINE_SPACING
+
+func _shortest_pocket() -> float:
+    var shortest: float = INF
+    for i in range(Rosters.LINE_SIZE):
+        shortest = minf(shortest, _rusher(i).pocket_seconds)
+    return shortest
 
 func _user_controls_offense() -> bool:
     return _user_on_offense() and mode == BattleSettings.Mode.PLAY
@@ -706,18 +947,15 @@ func _possession_text() -> String:
         return "SUDDEN DEATH • %s BALL" % offense["short"]
     return "POSS %d/%d • %s BALL" % [possession_number, TOTAL_POSSESSIONS, offense["short"]]
 
-func _result_title() -> String:
-    var winner: int = 0 if scores[0] > scores[1] else 1
-    return "%s WIN %d – %d" % [teams[winner]["short"], scores[winner], scores[1 - winner]]
-
 func _refresh_score() -> void:
     scoreboard.update_score(scores[0], scores[1], teams[0]["short"], teams[1]["short"])
 
-func _on_restart() -> void:
-    if mode == BattleSettings.Mode.AUTO_RESOLVE:
-        _auto_resolve()
-    else:
-        _start_battle()
+# Frontier as a 0..1 fraction from the user's side of the map. Both teams
+# attack to the right on screen, so the away team's yardage is mirrored.
+func _frontier_fraction(world_x: float) -> float:
+    var yard: float = clampf((world_x - GameConstants.LEFT_GOAL_X) / GameConstants.PIXELS_PER_YARD, 0.0, float(GameConstants.FIELD_YARDS))
+    var fraction: float = yard / float(GameConstants.FIELD_YARDS)
+    return fraction if _user_on_offense() else 1.0 - fraction
 
 func _back_to_menu() -> void:
     get_tree().change_scene_to_file("res://scenes/main.tscn")

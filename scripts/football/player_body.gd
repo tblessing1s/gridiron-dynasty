@@ -9,6 +9,7 @@ const GameConstants = preload("res://scripts/core/game_constants.gd")
 
 var active: bool = true
 var stats: Dictionary = {}
+var player_index: int = -1
 
 func _ready() -> void:
     collision_layer = 0

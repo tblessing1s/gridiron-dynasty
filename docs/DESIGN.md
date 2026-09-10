@@ -4,7 +4,7 @@ Status: draft v1. Supersedes the Phase 1 "single offensive drive" scope in the R
 
 ## 1. One-line pitch
 
-Risk with football teams. Each season, rival empires attack each other's territory in short 5-a-side battles. Win and you capture the territory and raid one of their players. Lose and your season is over, but you draft high. Build a 7-player dynasty over many seasons.
+Risk with football teams. Each season, rival empires attack each other's territory in short 7-a-side battles. Win and you capture the territory and raid one of their players. Lose and your season is over, but you draft high. Build a 7-player dynasty over many seasons.
 
 ## 2. Design pillars
 
@@ -32,7 +32,7 @@ Elimination order sets draft order: first eliminated picks first. Being knocked 
 
 ### 3.1 Two elimination variants
 
-- **Capital model (default).** Losing a border battle costs you that territory and a player. You are eliminated only when your capital falls. Every empire has 2–3 lives once it has captured a territory or two.
+- **Capital model (default).** Losing a border battle costs you that territory and a player: a failed attack hands the defender the territory you attacked from, unless that was your capital, which only ever falls to a direct attack. You are eliminated only when your capital falls. Every empire has 2–3 lives once it has captured a territory or two.
 - **Sudden death.** Any loss eliminates. Simpler and more brutal. Kept as an optional ruleset toggle.
 
 Eliminated players fast-forward through the remaining weeks (results shown as a ticker) straight to the offseason, where the draft is their payoff.
@@ -53,7 +53,7 @@ Eliminated players fast-forward through the remaining weeks (results shown as a 
 | Academy | +1 training point | rookie potential range +5 | — |
 | Stadium | — | — | Home crowd: attacker throw accuracy −10% |
 | Mines | +money | +money | — |
-| Highlands | — | — | Fatigue accrues 2× (favours deep benches) |
+| Highlands | — | — | Fatigue accrues 2× (favours fresh, well-rested rosters) |
 | Capital | +1 training point | draft class quality bonus | Home crowd |
 
 ### 4.2 Attacking
@@ -70,7 +70,7 @@ Capitals are kept. Outer territories return to neutral, except that the season w
 
 ## 5. The battle: Border War
 
-The battle is 5-a-side football on a short field. The line of scrimmage is the frontier between the two empires; a **border bar** across the top of the screen shows it as a tug-of-war over the contested territory.
+The battle is 7-a-side football on a short field. The line of scrimmage is the frontier between the two empires; a **border bar** across the top of the screen shows it as a tug-of-war over the contested territory.
 
 ### 5.1 Format
 
@@ -94,9 +94,9 @@ The battle is 5-a-side football on a short field. The line of scrimmage is the f
 
 Before the battle:
 
-- Both 5-man lineups and benches shown.
+- Both 7-man lineups shown, with fatigue on each player.
 - Stakes printed plainly: *WIN: capture Ironvale + raid one player. LOSE: lose Harbor, raid.*
-- Player sets the starting five (bench a fatigued player) and can set the franchise tag (section 7.2).
+- Player can set the franchise tag (section 7.2). There is no lineup decision: all seven play.
 - Territory modifiers shown as icons.
 
 ### 5.4 An offensive play
@@ -151,7 +151,7 @@ Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are 
 
 ### 6.1 Roster
 
-Exactly **7 players**: 5 starters plus 2 bench. Everyone plays both ways.
+Exactly **7 players, no bench**. All seven start and everyone plays both ways. A raid always costs a starter, and there is nowhere to hide a tired player — that is the point.
 
 | Slot | Offense | Defense | Key stats |
 |---|---|---|---|
@@ -160,10 +160,12 @@ Exactly **7 players**: 5 starters plus 2 bench. Everyone plays both ways.
 | 3 | WR | Cornerback | Speed, Skill |
 | 4 | WR | Cornerback | Speed, Skill |
 | 5 | Blocker | Rusher | Power, Awareness |
-| 6 | Bench | | any |
-| 7 | Bench | | any |
+| 6 | Blocker | Rusher | Power, Awareness |
+| 7 | Blocker | Rusher | Power, Awareness |
 
-Bench players sub in for fatigued starters. There are no injuries; fatigue is the only wear mechanic, so a thin bench means tired starters, never an empty slot.
+Three linemen a side make the pocket a real contest: each rusher fights his own blocker, and the pocket lasts until the first one wins.
+
+There are no injuries and no substitutions; fatigue is the only wear mechanic. A tired player plays worse, never sits. Rest weeks are the only relief.
 
 ### 6.2 Stats
 
@@ -238,7 +240,7 @@ One trait slot per player, unlocked by crossing a milestone (once per player per
 
 ### 8.6 Fatigue
 
-- Fatigue accrues per battle and per play; a fatigued player has reduced Speed and Power. Rest weeks and bench time recover it.
+- Fatigue accrues per battle and per play; a fatigued player has reduced Speed and Power. Only rest weeks recover it, so attacking every week wears the whole roster down.
 - No injuries. Players are never unavailable; the cost of overuse is a worse player, not a missing one.
 
 ## 9. Offseason
@@ -301,9 +303,9 @@ Save
 Each phase is playable on its own.
 
 - **Phase 1 (done).** Single drive: drag-to-throw, routes, defenders, downs, clock.
-- **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters. Still to do: border bar, matchup screen, stakes scaling, balance pass.
-- **Phase 3 — Season.** Player/Empire/Territory/Season model, map screen, weekly attacks, AI empire behaviour, raid rules with protections, elimination, save/load. AI-vs-AI battles auto-resolve.
-- **Phase 4 — Dynasty.** Offseason: draft, aging, retirement, contracts, traits, training points, loyalty, history lines, season summary.
+- **Phase 2 — Border War (in progress).** Turn the drive into the battle: 3 possessions each, 4 downs, no kicks, play cards, RB/Blocker/Rusher, stats-driven physics, three involvement modes, auto-resolve. Two hard-coded rosters, matchup screen, border bar, home-crowd modifier, aftermath with battle XP and fatigue, the raid with franchise-tag protection and the morale penalty (rosters persist for the session). Still to do: stakes scaling, balance pass.
+- **Phase 3 — Season (in progress).** Done: Empire/Territory/Season model, map screen, weekly attacks, AI empire attack planning, one battle per empire per week, capital-model elimination with absorption, AI-vs-AI auto-resolve with auto-raids, tag locking, season end at last-standing or week 12, rookie protection, autosave/load of the whole dynasty (single JSON slot). Still to do: territory resource effects, attack-origin choice when several apply.
+- **Phase 4 — Dynasty (in progress).** Done: age and hidden per-stat potential, aging curve with retirement and journeyman replacements, one-round draft in reverse elimination order with scout grades and a forced same-slot cut, rookie protection for the following season, loyalty (raided players grow slower), morale clearing, map reset with everyone back. Still to do: contracts, traits, training points, history lines, the champion's kept territory.
 - **Phase 5 — Polish.** Map reset rules, stakes scaling, territory modifiers, awards, balance passes on the play-call matrix and age curve.
 
 ## 13. Open questions

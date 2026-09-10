@@ -2,6 +2,7 @@ extends RefCounted
 
 const GameConstants = preload("res://scripts/core/game_constants.gd")
 const PlayBook = preload("res://scripts/core/play_book.gd")
+const Rosters = preload("res://scripts/core/rosters.gd")
 
 # Auto-resolve: plays a whole Border War with the same cards, matchup table,
 # and stat edges as the live battle, without animating anything.
@@ -73,16 +74,18 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
     var multiplier: float = PlayBook.matchup_multiplier(offense_card, defense_card)
     var op: Array = offense["players"]
     var dp: Array = defense["players"]
+    var block_power: float = Rosters.line_power(op)
+    var rush_power: float = Rosters.line_power(dp)
 
     if PlayBook.OFFENSE_IS_RUN[offense_card]:
-        var run_edge: float = float(_stat(op[1], "speed") + _stat(op[1], "power") + _stat(op[4], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power") - _stat(dp[4], "power")) / 300.0
+        var run_edge: float = (float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) + block_power - rush_power) / 300.0
         var run_factor: float = 1.0 + run_edge
         var mean: float = 5.0 if offense_card == PlayBook.Offense.DRAW else 6.0
         var deviation: float = 3.0 if offense_card == PlayBook.Offense.DRAW else 4.0
         var run_yards: int = int(round(rng.randfn(mean, deviation) * multiplier * run_factor))
         return {"yards": maxi(run_yards, -3), "result": "RUN", "turnover": false}
 
-    var sack_chance: float = clampf(0.08 + float(_stat(dp[4], "power") - _stat(op[4], "power")) * 0.004, 0.02, 0.35)
+    var sack_chance: float = clampf(0.08 + (rush_power - block_power) * 0.004, 0.02, 0.35)
     if defense_card == PlayBook.Defense.BLITZ:
         sack_chance *= 1.5
     if rng.randf() < sack_chance:
