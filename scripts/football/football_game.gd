@@ -3,6 +3,7 @@ extends Node2D
 const GameConstants = preload("res://scripts/core/game_constants.gd")
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
 const SeasonState = preload("res://scripts/core/season_state.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 const PlayBook = preload("res://scripts/core/play_book.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
@@ -169,6 +170,7 @@ func _show_aftermath() -> void:
         season_reported = true
         SeasonState.season.complete_user_battle(last_user_won)
         SeasonState.battle = {}
+        SaveGame.save()
         if not SeasonState.season.log.is_empty():
             subtitle = str(SeasonState.season.log[0])
     aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved, subtitle)
@@ -195,6 +197,8 @@ func _on_raid_confirmed(take_index: int, give_index: int) -> void:
         RaidRules.apply(teams[0], teams[1], take_index, give_index)
     else:
         RaidRules.apply(teams[1], teams[0], take_index, give_index)
+    if season_mode:
+        SaveGame.save()
 
 func _best_player_index(team: Dictionary) -> int:
     var players: Array = team["players"]

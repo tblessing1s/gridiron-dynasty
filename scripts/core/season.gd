@@ -3,6 +3,7 @@ extends RefCounted
 const Rosters = preload("res://scripts/core/rosters.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
 const RaidRules = preload("res://scripts/core/raid_rules.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 
 # One season of Border War: twelve empires on a 6x4 grid of territories,
 # two each to start. Each week every empire may attack one adjacent enemy
@@ -131,6 +132,64 @@ func _build_territories() -> void:
             })
             if is_capital:
                 empires[owner]["capital_id"] = id
+
+# ---------------------------------------------------------------- persistence
+
+func to_dict() -> Dictionary:
+    var empire_data: Array = []
+    for e in empires:
+        var copy: Dictionary = e.duplicate(true)
+        copy["color"] = (e["color"] as Color).to_html(false)
+        empire_data.append(copy)
+    return {
+        "number": number,
+        "week": week,
+        "over": over,
+        "winner_id": winner_id,
+        "previous_champion": previous_champion,
+        "elimination_order": Array(elimination_order),
+        "log": Array(log),
+        "planned_battles": planned_battles.duplicate(true),
+        "user_battle": user_battle.duplicate(true),
+        "empires": empire_data,
+        "territories": territories.duplicate(true),
+    }
+
+func restore(data: Dictionary) -> void:
+    number = int(data.get("number", 1))
+    week = int(data.get("week", 1))
+    over = bool(data.get("over", false))
+    winner_id = int(data.get("winner_id", -1))
+    previous_champion = int(data.get("previous_champion", -1))
+    elimination_order = SaveGame.int_array(data.get("elimination_order", []))
+    log.clear()
+    for line in data.get("log", []):
+        log.append(str(line))
+    planned_battles.clear()
+    for battle in data.get("planned_battles", []):
+        planned_battles.append(SaveGame.int_dict(battle))
+    user_battle = SaveGame.int_dict(data.get("user_battle", {}))
+
+    empires.clear()
+    for e in data.get("empires", []):
+        var copy: Dictionary = e
+        copy["id"] = int(copy["id"])
+        copy["capital_id"] = int(copy["capital_id"])
+        copy["tag_index"] = int(copy.get("tag_index", -1))
+        copy["eliminated"] = bool(copy.get("eliminated", false))
+        copy["is_user"] = bool(copy.get("is_user", false))
+        copy["color"] = Color(str(copy["color"]))
+        copy["players"] = SaveGame.normalize_players(copy.get("players", []))
+        empires.append(copy)
+
+    territories.clear()
+    for t in data.get("territories", []):
+        var copy: Dictionary = t
+        for key in ["id", "column", "row", "owner_id"]:
+            copy[key] = int(copy[key])
+        copy["is_capital"] = bool(copy.get("is_capital", false))
+        copy["adjacency"] = SaveGame.int_array(copy.get("adjacency", []))
+        territories.append(copy)
 
 # ---------------------------------------------------------------- queries
 

@@ -3,6 +3,7 @@ extends RefCounted
 const Rosters = preload("res://scripts/core/rosters.gd")
 const RaidRules = preload("res://scripts/core/raid_rules.gd")
 const SeasonScript = preload("res://scripts/core/season.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 
 # The offseason, in order: morale clears, everyone ages (growth toward
 # potential, decline past thirty, retirement rolls), then a one-round
@@ -22,13 +23,56 @@ var league_retirements: int = 0
 var pick_cursor: int = 0
 var rng: RandomNumberGenerator
 
-func _init(season) -> void:
+# fresh=false builds an empty shell for restore().
+func _init(season, fresh: bool = true) -> void:
     previous = season
     rng = season.rng
     next_number = int(season.number) + 1
-    _run_aging()
-    _build_order()
-    _build_class()
+    if fresh:
+        _run_aging()
+        _build_order()
+        _build_class()
+
+# ---------------------------------------------------------------- persistence
+
+func to_dict() -> Dictionary:
+    var aging_data: Dictionary = {}
+    for key in aging.keys():
+        aging_data[str(key)] = aging[key]
+    return {
+        "next_number": next_number,
+        "order": Array(order),
+        "draft_class": draft_class.duplicate(true),
+        "picks": picks.duplicate(true),
+        "aging": aging_data,
+        "league_retirements": league_retirements,
+        "pick_cursor": pick_cursor,
+    }
+
+func restore(data: Dictionary) -> void:
+    next_number = int(data.get("next_number", next_number))
+    order = SaveGame.int_array(data.get("order", []))
+    draft_class = SaveGame.normalize_players(data.get("draft_class", []))
+    picks.clear()
+    for pick in data.get("picks", []):
+        var copy: Dictionary = pick
+        copy["pick"] = int(copy["pick"])
+        copy["empire_id"] = int(copy["empire_id"])
+        copy["rookie"] = SaveGame.normalize_player(copy["rookie"])
+        picks.append(copy)
+    aging.clear()
+    var aging_data: Dictionary = data.get("aging", {})
+    for key in aging_data.keys():
+        var reports: Array = []
+        for report in aging_data[key]:
+            var copy: Dictionary = report
+            copy["age"] = int(copy.get("age", 0))
+            copy["retired"] = bool(copy.get("retired", false))
+            copy["changes"] = SaveGame.int_dict(copy.get("changes", {}))
+            reports.append(copy)
+        aging[int(key)] = reports
+    league_retirements = int(data.get("league_retirements", 0))
+    pick_cursor = int(data.get("pick_cursor", 0))
 
 # ---------------------------------------------------------------- aging
 

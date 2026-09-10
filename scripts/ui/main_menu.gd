@@ -3,10 +3,13 @@ extends Control
 const BattleSettings = preload("res://scripts/core/battle_settings.gd")
 const SeasonState = preload("res://scripts/core/season_state.gd")
 const SeasonScript = preload("res://scripts/core/season.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 
 var mode_buttons: Array = []
 
 func _ready() -> void:
+    if not SeasonState.has_season() and SaveGame.exists():
+        SaveGame.load_dynasty()
     _build_ui()
 
 func _build_ui() -> void:
@@ -70,8 +73,18 @@ func _build_ui() -> void:
     elif SeasonState.has_season():
         var week: int = SeasonState.season.week
         _add_action(column, "CONTINUE SEASON", "Season %d, week %d of %d. Pick up where you left off." % [SeasonState.season.number, mini(week, SeasonScript.MAX_WEEKS), SeasonScript.MAX_WEEKS], _on_continue_season)
-    _add_action(column, "NEW DYNASTY", "Start a fresh map with fresh rosters.", _on_new_season)
+    var new_hint: String = "Start a fresh map with fresh rosters."
+    if SeasonState.has_season():
+        new_hint += " Replaces the saved dynasty."
+    _add_action(column, "NEW DYNASTY", new_hint, _on_new_season)
     _add_action(column, "QUICK BATTLE", "One Border War, Hawks vs Forge, no map.", _on_quick_battle)
+
+    var save_note: Label = Label.new()
+    save_note.text = "The dynasty autosaves after every week, battle, raid, and draft pick."
+    save_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    save_note.add_theme_font_size_override("font_size", 13)
+    save_note.modulate = Color(1, 1, 1, 0.5)
+    column.add_child(save_note)
 
     _refresh_mode_buttons()
 
@@ -118,9 +131,11 @@ func _on_continue_season() -> void:
     get_tree().change_scene_to_file("res://scenes/map.tscn")
 
 func _on_new_season() -> void:
+    SaveGame.delete()
     SeasonState.season = SeasonScript.new()
     SeasonState.battle = {}
     SeasonState.offseason = null
+    SaveGame.save()
     get_tree().change_scene_to_file("res://scenes/map.tscn")
 
 func _on_continue_offseason() -> void:

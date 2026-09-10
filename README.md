@@ -59,7 +59,11 @@ When a season ends, **OFFSEASON** runs three steps:
 
 Players also carry an origin: raided players grow slower for good (each XP point is kept three times in four), so raiding builds win-now teams and drafting builds long-term ones. XP never lifts a stat above its potential.
 
-Territory resources are labels only for now; there are no contracts and no save/load yet.
+## Saving
+
+The dynasty autosaves to `user://dynasty.json` after every week, battle result, raid, draft pick, and new season — one save slot, no manual saving. The main menu loads it on startup and offers CONTINUE SEASON or CONTINUE OFFSEASON; a battle you left mid-way resumes at its matchup screen. NEW DYNASTY replaces the save. Quick battles are never saved. A save from a different version of the game is ignored rather than loaded.
+
+Territory resources are labels only for now; there are no contracts yet.
 
 ## Run
 

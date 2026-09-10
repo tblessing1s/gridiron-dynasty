@@ -2,6 +2,7 @@ extends Node2D
 
 const SeasonScript = preload("res://scripts/core/season.gd")
 const SeasonState = preload("res://scripts/core/season_state.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 const PlayerRow = preload("res://scripts/ui/player_row.gd")
 
@@ -313,9 +314,11 @@ func _launch_or_resolve() -> void:
     info_target = -1
     if season.has_user_battle():
         SeasonState.battle = season.user_battle.duplicate()
+        SaveGame.save()
         get_tree().change_scene_to_file("res://scenes/game.tscn")
         return
     season.resolve_week_without_user()
+    SaveGame.save()
     _refresh()
 
 func _on_offseason() -> void:

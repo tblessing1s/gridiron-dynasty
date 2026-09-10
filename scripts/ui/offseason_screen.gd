@@ -1,6 +1,7 @@
 extends Control
 
 const SeasonState = preload("res://scripts/core/season_state.gd")
+const SaveGame = preload("res://scripts/core/save_game.gd")
 const OffseasonScript = preload("res://scripts/core/offseason.gd")
 const Rosters = preload("res://scripts/core/rosters.gd")
 const PlayerRow = preload("res://scripts/ui/player_row.gd")
@@ -25,6 +26,7 @@ func _ready() -> void:
             get_tree().change_scene_to_file.call_deferred("res://scenes/main.tscn")
             return
         SeasonState.offseason = OffseasonScript.new(SeasonState.season)
+        SaveGame.save()
     offseason = SeasonState.offseason
     var background: ColorRect = ColorRect.new()
     background.color = Color(0.05, 0.07, 0.09, 1.0)
@@ -212,6 +214,7 @@ func _on_confirm_pick() -> void:
         return
     offseason.user_pick(chosen_rookie, chosen_cut)
     offseason.run_remaining_ai_picks()
+    SaveGame.save()
     _show_step()
 
 # ---------------------------------------------------------------- done
@@ -235,6 +238,7 @@ func _on_start_season() -> void:
     SeasonState.season = offseason.build_next_season()
     SeasonState.offseason = null
     SeasonState.battle = {}
+    SaveGame.save()
     get_tree().change_scene_to_file("res://scenes/map.tscn")
 
 # ---------------------------------------------------------------- helpers
