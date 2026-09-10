@@ -58,7 +58,7 @@ Eliminated players fast-forward through the remaining weeks (results shown as a 
 
 ### 4.2 Attacking
 
-The player picks one adjacent enemy territory per week. Attacking is always optional; a week with no attack is a rest week (fatigue recovers, injured players heal faster). AI empires attack based on a simple heuristic: weakest adjacent neighbour, weighted by resource value, with a rest chance that rises with fatigue.
+The player picks one adjacent enemy territory per week. Attacking is always optional; a week with no attack is a rest week (fatigue fully recovers). AI empires attack based on a simple heuristic: weakest adjacent neighbour, weighted by resource value, with a rest chance that rises with fatigue.
 
 ### 4.3 Being attacked
 
@@ -96,7 +96,7 @@ Before the battle:
 
 - Both 5-man lineups and benches shown.
 - Stakes printed plainly: *WIN: capture Ironvale + raid one player. LOSE: lose Harbor, raid.*
-- Player sets the starting five (bench a hurt player) and can set the franchise tag (section 7.2).
+- Player sets the starting five (bench a fatigued player) and can set the franchise tag (section 7.2).
 - Territory modifiers shown as icons.
 
 ### 5.4 An offensive play
@@ -152,7 +152,7 @@ Exactly **7 players**: 5 starters plus 2 bench. Everyone plays both ways.
 | 6 | Bench | | any |
 | 7 | Bench | | any |
 
-Bench players sub in for injuries and fatigue. With no bench and an injury, a battle is played 5-on-4.
+Bench players sub in for fatigued starters. There are no injuries; fatigue is the only wear mechanic, so a thin bench means tired starters, never an empty slot.
 
 ### 6.2 Stats
 
@@ -165,7 +165,7 @@ Four stats, 0–99:
 | Skill | throw accuracy (QB), catch radius | interception radius |
 | Awareness | pre-snap read of the defence's card | reaction time to the throw |
 
-Plus: **age**, hidden **potential** (ceiling per stat), one **trait** slot, **fatigue**, **injury** (weeks out), **origin** (drafted/raided, by whom, when), **contract** (seasons remaining).
+Plus: **age**, hidden **potential** (ceiling per stat), one **trait** slot, **fatigue**, **origin** (drafted/raided, by whom, when), **contract** (seasons remaining).
 
 ### 6.3 Player card
 
@@ -221,14 +221,14 @@ One trait slot per player, unlocked by crossing a milestone (once per player per
 | Deep Threat | catch radius +20% on throws over 20 yards |
 | Bulldozer | always breaks the first tackle from a lower-Power player |
 | Film Junkie | always reveals the defence's card |
-| Ironman | no fatigue, half injury chance |
+| Ironman | never fatigues |
 | Mentor | rookies on the roster grow 25% faster |
 | Ball Hawk | interception radius +25% |
 
-### 8.6 Fatigue and injury
+### 8.6 Fatigue
 
 - Fatigue accrues per battle and per play; a fatigued player has reduced Speed and Power. Rest weeks and bench time recover it.
-- Each hard tackle rolls for injury. Injured players are out 1–3 weeks. A slot with no healthy player plays short.
+- No injuries. Players are never unavailable; the cost of overuse is a worse player, not a missing one.
 
 ## 9. Offseason
 
@@ -248,7 +248,7 @@ In order:
 3. **Roster** — 7 player cards, training point spend, franchise tag.
 4. **Matchup** — lineups, stakes, modifiers, play/auto-resolve.
 5. **Battle** — field, border bar, play cards, scoreboard.
-6. **Aftermath** — result, border bar fill, injuries, XP, raid picker.
+6. **Aftermath** — result, border bar fill, XP, raid picker.
 7. **Draft** — draft order, class, pick.
 8. **Season summary**.
 
@@ -261,7 +261,7 @@ Player
   id, name, age, slot
   speed, power, skill, awareness           # 0–99
   potential { speed, power, skill, awareness }   # hidden until revealed
-  trait, fatigue, injury_weeks
+  trait, fatigue
   origin { kind: drafted|raided, season, empire, pick }
   loyalty_rate                             # 1.0 drafted, 0.75 raided
   contract_seasons, morale_penalty
