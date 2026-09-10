@@ -210,5 +210,11 @@ static func break_tackle_chance(carrier_power: int, tackler_power: int) -> float
 static func decision_seconds(awareness: int) -> float:
     return lerpf(1.7, 0.9, float(awareness) / 100.0)
 
+# Separation (px) that lets the QB pull the trigger early, in rhythm, rather
+# than waiting out the full decision_seconds read. A sharper QB trusts a
+# tighter window.
+static func early_throw_separation(awareness: int) -> float:
+    return lerpf(75.0, 45.0, float(awareness) / 100.0)
+
 static func read_chance(awareness: int) -> float:
     return float(awareness) / 100.0 * 0.9

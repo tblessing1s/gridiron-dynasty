@@ -687,10 +687,6 @@ func _ai_throw_decision() -> void:
             _throw_to(running_back)
         return
 
-    var pressure: bool = _nearest_rusher_distance() < 75.0
-    if hold_seconds < ai_decision_seconds and not pressure:
-        return
-
     var best = null
     var best_score: float = -INF
     var best_separation: float = 0.0
@@ -703,11 +699,20 @@ func _ai_throw_decision() -> void:
             best = receiver
             best_separation = separation
 
+    var pressure: bool = _nearest_rusher_distance() < 75.0
     var desperate: bool = pressure or hold_seconds > ai_decision_seconds + 1.4
-    if best != null and (best_separation > 50.0 or desperate):
+    if best == null:
+        if desperate:
+            _launch(Vector2(qb.global_position.x + 220.0, GameConstants.FIELD_TOP + 4.0))
+        return
+
+    # Throw in rhythm the moment someone is clearly open instead of always
+    # working through the full read first; a sharper QB (lower
+    # ai_decision_seconds) both notices it sooner and trusts a tighter window.
+    var thrown_early: bool = hold_seconds >= ai_decision_seconds * 0.4 and best_separation >= Rosters.early_throw_separation(qb.stat("awareness"))
+    var thrown_on_time: bool = hold_seconds >= ai_decision_seconds and best_separation > 50.0
+    if thrown_early or thrown_on_time or desperate:
         _throw_to(best)
-    elif desperate:
-        _launch(Vector2(qb.global_position.x + 220.0, GameConstants.FIELD_TOP + 4.0))
 
 func _throw_to(receiver) -> void:
     var lead: Vector2 = receiver.global_position + receiver.velocity * 0.5
