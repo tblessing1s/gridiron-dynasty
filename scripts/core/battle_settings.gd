@@ -7,6 +7,13 @@ enum Mode { AUTO_RESOLVE, WATCH, PLAY, SIM }
 
 static var mode: int = Mode.SIM
 
+# SIM resolves a down instantly with stat math; when this is on, the field
+# plays a short canned animation of that already-decided result before the
+# outcome is revealed (scripts/ui/play_replay.gd). Never used in AUTO-RESOLVE
+# or for AI-vs-AI battles, which never enter the battle scene at all.
+static var replay: bool = true
+static var replay_speed: float = 1.0
+
 # The game is play-calling and stats, not a live throw: PLAY/WATCH (the
 # real-time QB slingshot, receiver/defender AI) are kept in the codebase and
 # stay parse-clean and runnable, but hidden from the menu. Flip this back on

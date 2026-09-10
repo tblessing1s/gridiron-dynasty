@@ -6,6 +6,9 @@ const SeasonScript = preload("res://scripts/core/season.gd")
 const SaveGame = preload("res://scripts/core/save_game.gd")
 
 var mode_buttons: Array = []
+var replay_row: HBoxContainer
+var replay_toggle_button: Button
+var speed_buttons: Array = []
 
 func _ready() -> void:
     if not SeasonState.has_season() and SaveGame.exists():
@@ -68,6 +71,27 @@ func _build_ui() -> void:
     _add_mode_button(mode_row, "SIM", "call the plays", BattleSettings.Mode.SIM)
     _add_mode_button(mode_row, "AUTO", "box score only", BattleSettings.Mode.AUTO_RESOLVE)
 
+    replay_row = HBoxContainer.new()
+    replay_row.alignment = BoxContainer.ALIGNMENT_CENTER
+    replay_row.add_theme_constant_override("separation", 10)
+    column.add_child(replay_row)
+
+    replay_toggle_button = Button.new()
+    replay_toggle_button.custom_minimum_size = Vector2(180, 36)
+    replay_toggle_button.add_theme_font_size_override("font_size", 13)
+    replay_toggle_button.pressed.connect(_on_replay_toggle_pressed)
+    replay_row.add_child(replay_toggle_button)
+
+    for speed in [1.0, 1.5, 2.0]:
+        var speed_button: Button = Button.new()
+        speed_button.text = "%.1fx" % speed
+        speed_button.custom_minimum_size = Vector2(56, 36)
+        speed_button.toggle_mode = true
+        speed_button.add_theme_font_size_override("font_size", 13)
+        speed_button.pressed.connect(_on_speed_pressed.bind(speed))
+        replay_row.add_child(speed_button)
+        speed_buttons.append({"button": speed_button, "speed": speed})
+
     var spacer: Control = Control.new()
     spacer.custom_minimum_size = Vector2(0, 6)
     column.add_child(spacer)
@@ -91,6 +115,7 @@ func _build_ui() -> void:
     column.add_child(save_note)
 
     _refresh_mode_buttons()
+    _refresh_replay_row()
 
 func _add_mode_button(row: HBoxContainer, title: String, hint: String, mode: int) -> void:
     var button: Button = Button.new()
@@ -125,11 +150,31 @@ func _add_action(column: VBoxContainer, title: String, description: String, hand
 func _on_mode_pressed(mode: int) -> void:
     BattleSettings.mode = mode
     _refresh_mode_buttons()
+    _refresh_replay_row()
 
 func _refresh_mode_buttons() -> void:
     for entry in mode_buttons:
         var button: Button = entry["button"]
         button.button_pressed = int(entry["mode"]) == BattleSettings.mode
+
+func _on_replay_toggle_pressed() -> void:
+    BattleSettings.replay = not BattleSettings.replay
+    _refresh_replay_row()
+
+func _on_speed_pressed(speed: float) -> void:
+    BattleSettings.replay_speed = speed
+    _refresh_replay_row()
+
+# Only shown for SIM: AUTO-RESOLVE never replays and the hidden real-time
+# modes have no scripted-replay path.
+func _refresh_replay_row() -> void:
+    replay_row.visible = BattleSettings.mode == BattleSettings.Mode.SIM
+    replay_toggle_button.text = "WATCH THE PLAY: %s" % ("ON" if BattleSettings.replay else "OFF")
+    for entry in speed_buttons:
+        var button: Button = entry["button"]
+        var speed: float = float(entry["speed"])
+        button.disabled = not BattleSettings.replay
+        button.button_pressed = BattleSettings.replay and absf(speed - BattleSettings.replay_speed) < 0.01
 
 func _on_continue_season() -> void:
     get_tree().change_scene_to_file("res://scenes/map.tscn")

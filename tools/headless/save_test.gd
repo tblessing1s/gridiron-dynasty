@@ -20,6 +20,8 @@ func _initialize() -> void:
     SeasonState.battle = {}
     SeasonState.offseason = null
     BattleSettings.mode = BattleSettings.Mode.WATCH
+    BattleSettings.replay = false
+    BattleSettings.replay_speed = 1.5
     _play_weeks(season, 3)
 
     # 1. Mid-season with a pending user battle.
@@ -32,9 +34,13 @@ func _initialize() -> void:
     assert(SaveGame.save())
     print("saved mid-season: ", SaveGame.summary(), " (", FileAccess.open(SaveGame.SAVE_PATH, FileAccess.READ).get_length(), " bytes)")
     BattleSettings.mode = BattleSettings.Mode.PLAY
+    BattleSettings.replay = true
+    BattleSettings.replay_speed = 1.0
     SeasonState.clear()
     assert(SaveGame.load_dynasty())
     assert(BattleSettings.mode == BattleSettings.Mode.WATCH, "mode not restored")
+    assert(BattleSettings.replay == false, "replay setting not restored")
+    assert(absf(BattleSettings.replay_speed - 1.5) < 0.001, "replay speed not restored")
     var loaded = SeasonState.season
     assert(loaded.to_dict() == before, "season changed across save/load")
     assert(SeasonState.battle == before_battle, "pending battle changed across save/load")

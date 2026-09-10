@@ -27,6 +27,8 @@ static func save() -> bool:
     var data: Dictionary = {
         "version": VERSION,
         "mode": BattleSettings.mode,
+        "replay": BattleSettings.replay,
+        "replay_speed": BattleSettings.replay_speed,
         "season": SeasonState.season.to_dict(),
         "battle": SeasonState.battle.duplicate(true),
         "offseason": SeasonState.offseason.to_dict() if SeasonState.offseason != null else null,
@@ -67,6 +69,8 @@ static func load_dynasty() -> bool:
         offseason.restore(offseason_data)
         SeasonState.offseason = offseason
     BattleSettings.mode = int(data.get("mode", BattleSettings.mode))
+    BattleSettings.replay = bool(data.get("replay", BattleSettings.replay))
+    BattleSettings.replay_speed = float(data.get("replay_speed", BattleSettings.replay_speed))
     return true
 
 # Short description for the menu: "Season 2, week 5" / "Season 1 offseason".
