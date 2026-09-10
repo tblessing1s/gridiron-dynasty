@@ -126,7 +126,7 @@ func _add_column(x: float, header_text: String, team: Dictionary, slots: Array[S
 
     var players: Array = team["players"]
     for i in range(players.size()):
-        var row: ColorRect = PlayerRow.build(players[i], slots[i], color, COLUMN_WIDTH, false)
+        var row: ColorRect = PlayerRow.build(players[i], slots[i], color, COLUMN_WIDTH, false, Rosters.SLOT_TYPES[i])
         row.position = Vector2(x, LINEUP_TOP + float(i) * ROW_STEP)
         root.add_child(row)
         if tag_enabled:

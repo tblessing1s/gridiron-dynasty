@@ -218,3 +218,61 @@ static func early_throw_separation(awareness: int) -> float:
 
 static func read_chance(awareness: int) -> float:
     return float(awareness) / 100.0 * 0.9
+
+# ---------------------------------------------------------------- coordinators
+
+# Generates an OC/DC pair the first time a team is seen; already-coached
+# teams (a restored save, a season carried into a new one) are left alone.
+static func ensure_coaches(team: Dictionary, rng: RandomNumberGenerator, base_rating: int) -> void:
+    if team.has("coaches"):
+        return
+    team["coaches"] = {
+        "oc": {"name": random_name(rng), "rating": clampi(base_rating + rng.randi_range(-12, 12), 30, 95)},
+        "dc": {"name": random_name(rng), "rating": clampi(base_rating + rng.randi_range(-12, 12), 30, 95)},
+    }
+
+static func coach(team: Dictionary, role: String) -> Dictionary:
+    var coaches: Dictionary = team.get("coaches", {})
+    if coaches.has(role):
+        var c: Dictionary = coaches[role]
+        return {"name": str(c.get("name", "Coach")), "rating": int(c.get("rating", 60))}
+    return {"name": "Coach", "rating": 60}
+
+static func team_rating(players: Array) -> int:
+    if players.is_empty():
+        return 60
+    var total: int = 0
+    var count: int = 0
+    for player in players:
+        for key in STAT_KEYS:
+            total += int(player[key])
+            count += 1
+    return int(round(float(total) / float(count)))
+
+# ---------------------------------------------------------------- overall rating
+
+# Slot-weighted overall (0-99): each of the four stats counted by how much
+# the slot actually leans on it, rather than a flat average.
+const SLOT_WEIGHTS: Dictionary = {
+    "QB": {"speed": 0.1, "power": 0.1, "skill": 0.45, "awareness": 0.35},
+    "RB": {"speed": 0.4, "power": 0.4, "skill": 0.1, "awareness": 0.1},
+    "WR": {"speed": 0.45, "power": 0.05, "skill": 0.4, "awareness": 0.1},
+    "BL": {"speed": 0.05, "power": 0.55, "skill": 0.1, "awareness": 0.3},
+}
+
+static func overall_for_type(player: Dictionary, slot_type: String) -> int:
+    var weights: Dictionary = SLOT_WEIGHTS.get(slot_type, {"speed": 0.25, "power": 0.25, "skill": 0.25, "awareness": 0.25})
+    var total: float = 0.0
+    for key in STAT_KEYS:
+        total += float(player[key]) * float(weights.get(key, 0.25))
+    return clampi(int(round(total)), 0, 99)
+
+# slot_index is 0-6 into SLOT_TYPES (the player's fixed offensive slot,
+# regardless of which side of the ball is being displayed).
+static func overall(player: Dictionary, slot_index: int) -> int:
+    return overall_for_type(player, SLOT_TYPES[slot_index])
+
+# Same letter grades the draft's scout report uses, so A+ means the same
+# thing everywhere.
+static func grade(value: int) -> String:
+    return scout_grade(value)

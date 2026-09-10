@@ -10,6 +10,8 @@ var mode_buttons: Array = []
 func _ready() -> void:
     if not SeasonState.has_season() and SaveGame.exists():
         SaveGame.load_dynasty()
+    if not BattleSettings.is_selectable(BattleSettings.mode):
+        BattleSettings.mode = BattleSettings.Mode.SIM
     _build_ui()
 
 func _build_ui() -> void:
@@ -60,9 +62,10 @@ func _build_ui() -> void:
     mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
     mode_row.add_theme_constant_override("separation", 12)
     column.add_child(mode_row)
-    _add_mode_button(mode_row, "PLAY", "throw it yourself", BattleSettings.Mode.PLAY)
-    _add_mode_button(mode_row, "WATCH", "call plays, watch", BattleSettings.Mode.WATCH)
-    _add_mode_button(mode_row, "SIM", "call plays, instant sim", BattleSettings.Mode.SIM)
+    if BattleSettings.SHOW_REALTIME_MODES:
+        _add_mode_button(mode_row, "PLAY", "throw it yourself", BattleSettings.Mode.PLAY)
+        _add_mode_button(mode_row, "WATCH", "call plays, watch", BattleSettings.Mode.WATCH)
+    _add_mode_button(mode_row, "SIM", "call the plays", BattleSettings.Mode.SIM)
     _add_mode_button(mode_row, "AUTO", "box score only", BattleSettings.Mode.AUTO_RESOLVE)
 
     var spacer: Control = Control.new()
