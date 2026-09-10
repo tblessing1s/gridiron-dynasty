@@ -19,6 +19,15 @@ const ROWS: int = 4
 const USER_EMPIRE: int = 0
 const AI_REST_CHANCE: float = 0.25
 
+# Territory resource effects (design doc section 4.1). Academy and Capital
+# territories each pay training points weekly; Mines pay money. Stadium and
+# Capital territories grant the defender a home-crowd edge in the battle
+# fought there; Highlands double how fast fatigue bars fill in that battle.
+const TRAINING_POINTS_PER_ACADEMY: int = 1
+const TRAINING_POINTS_PER_CAPITAL: int = 1
+const MONEY_PER_MINE: int = 4
+const HIGHLANDS_FATIGUE_MULTIPLIER: float = 2.0
+
 const EMPIRE_NAMES: Array = [
     ["HARBOR HAWKS", "HAWKS", "2f77c7"],
     ["IRONVALE FORGE", "FORGE", "c2622a"],
@@ -99,6 +108,8 @@ func _build_empires(existing_rosters: Array) -> void:
             "eliminated": false,
             "tag_index": -1,
             "is_user": i == USER_EMPIRE,
+            "training_points": 0,
+            "money": 0,
         })
 
 func _build_territories() -> void:
@@ -178,6 +189,8 @@ func restore(data: Dictionary) -> void:
         copy["tag_index"] = int(copy.get("tag_index", -1))
         copy["eliminated"] = bool(copy.get("eliminated", false))
         copy["is_user"] = bool(copy.get("is_user", false))
+        copy["training_points"] = int(copy.get("training_points", 0))
+        copy["money"] = int(copy.get("money", 0))
         copy["color"] = Color(str(copy["color"]))
         copy["players"] = SaveGame.normalize_players(copy.get("players", []))
         empires.append(copy)
@@ -222,6 +235,24 @@ func adjacent_enemy_territories(empire_id: int) -> Array[int]:
 
 func can_attack(empire_id: int, territory_id: int) -> bool:
     return adjacent_enemy_territories(empire_id).has(territory_id)
+
+func resource_count(empire_id: int, resource: String) -> int:
+    var count: int = 0
+    for t in territories:
+        if int(t["owner_id"]) == empire_id and str(t["resource"]) == resource:
+            count += 1
+    return count
+
+# Stadium and Capital territories give the defender a home crowd: the
+# attacker's throws scatter wider in the battle fought there.
+func home_crowd_at(territory_id: int) -> bool:
+    var resource: String = str(territories[territory_id]["resource"])
+    return resource == "Stadium" or resource == "Capital"
+
+# Highlands territories favour fresh rosters: fatigue bars fill twice as
+# fast in the battle fought there.
+func fatigue_multiplier_at(territory_id: int) -> float:
+    return HIGHLANDS_FATIGUE_MULTIPLIER if str(territories[territory_id]["resource"]) == "Highlands" else 1.0
 
 # The territory an attacker fights from: a non-capital neighbour of the
 # target if one exists, otherwise the capital itself.
@@ -347,7 +378,7 @@ func _resolve_ai_battles() -> void:
         battle["origin"] = attack_origin(attacker, target)
         if int(battle["origin"]) < 0:
             continue
-        var result: Dictionary = BattleSim.resolve(empires[attacker], empires[defender], rng)
+        var result: Dictionary = BattleSim.resolve(empires[attacker], empires[defender], rng, home_crowd_at(target))
         var attacker_won: bool = int(result["home_score"]) > int(result["away_score"])
         var winner: int = attacker if attacker_won else defender
         _apply_result(battle, winner, "%d–%d" % [result["home_score"], result["away_score"]])
@@ -404,7 +435,17 @@ func _ai_raid(winner: int, loser: int) -> void:
     RaidRules.apply(winner_team, loser_team, take, give)
     log.append("%s raided %s from %s" % [winner_team["short"], taken_name, loser_team["short"]])
 
+func _pay_resources() -> void:
+    for id in alive_empires():
+        var e: Dictionary = empires[id]
+        var academies: int = resource_count(id, "Academy")
+        var capitals: int = resource_count(id, "Capital")
+        var mines: int = resource_count(id, "Mines")
+        e["training_points"] = int(e["training_points"]) + academies * TRAINING_POINTS_PER_ACADEMY + capitals * TRAINING_POINTS_PER_CAPITAL
+        e["money"] = int(e["money"]) + mines * MONEY_PER_MINE
+
 func _advance_week() -> void:
+    _pay_resources()
     week += 1
     var alive: Array[int] = alive_empires()
     if alive.size() <= 1 or week > MAX_WEEKS:

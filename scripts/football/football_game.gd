@@ -56,6 +56,8 @@ var season_mode: bool = false
 var season_reported: bool = false
 var attacker_team: int = 0
 var context: Dictionary = {}
+var home_crowd_active: bool = true
+var battle_fatigue_multiplier: float = 1.0
 var battle_stats: Array = [[], []]
 var auto_resolved: bool = false
 var last_user_won: bool = false
@@ -119,6 +121,8 @@ func _load_teams() -> void:
         season_mode = true
         teams = [season.user(), opponent]
         attacker_team = 0 if user_is_attacker else 1
+        home_crowd_active = season.home_crowd_at(int(battle["territory"]))
+        battle_fatigue_multiplier = season.fatigue_multiplier_at(int(battle["territory"]))
         context = {
             "territory": target["name"],
             "origin": season.territory(origin_id)["name"] if origin_id >= 0 else "your border",
@@ -130,6 +134,8 @@ func _load_teams() -> void:
         season_mode = false
         teams = [Rosters.hawks(), Rosters.forge()]
         attacker_team = 0
+        home_crowd_active = true
+        battle_fatigue_multiplier = 1.0
         context = {"territory": "Ironvale", "origin": "Harbor Point", "user_is_attacker": true, "target_is_capital": false, "origin_is_capital": false}
 
 func _show_matchup() -> void:
@@ -145,7 +151,8 @@ func _show_matchup() -> void:
         ai_tag_index = _best_player_index(teams[1])
         if season_mode:
             teams[1]["tag_index"] = ai_tag_index
-    matchup_screen.setup(teams[0], teams[1], mode, HOME_CROWD_SCATTER, ai_tag_index, context, franchise_tag_index if season_mode else -1)
+    var home_crowd_penalty: float = HOME_CROWD_SCATTER if home_crowd_active else 1.0
+    matchup_screen.setup(teams[0], teams[1], mode, home_crowd_penalty, ai_tag_index, context, franchise_tag_index if season_mode else -1)
     matchup_screen.visible = true
 
 func _show_aftermath() -> void:
@@ -173,7 +180,7 @@ func _show_aftermath() -> void:
         SaveGame.save()
         if not SeasonState.season.log.is_empty():
             subtitle = str(SeasonState.season.log[0])
-    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved, subtitle)
+    aftermath_screen.setup(teams[0], teams[1], scores, last_user_won, possession_log, xp_report, battle_stats[0], auto_resolved, subtitle, battle_fatigue_multiplier)
     aftermath_screen.visible = true
 
 func _show_raid() -> void:
@@ -347,7 +354,7 @@ func _start_battle() -> void:
     _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[attacker_team]["short"], TOTAL_POSSESSIONS])
 
 func _auto_resolve() -> void:
-    var result: Dictionary = BattleSim.resolve(teams[attacker_team], teams[1 - attacker_team], rng)
+    var result: Dictionary = BattleSim.resolve(teams[attacker_team], teams[1 - attacker_team], rng, home_crowd_active)
     scores[attacker_team] = int(result["home_score"])
     scores[1 - attacker_team] = int(result["away_score"])
     _refresh_score()
@@ -658,7 +665,7 @@ func _throw_to(receiver) -> void:
 
 func _launch(target: Vector2) -> void:
     var scatter: float = Rosters.scatter_px(qb.stat("skill")) * rng.randf()
-    if offense_team == attacker_team:
+    if offense_team == attacker_team and home_crowd_active:
         scatter *= HOME_CROWD_SCATTER
     var angle: float = rng.randf() * TAU
     var landing: Vector2 = target + Vector2(cos(angle), sin(angle)) * scatter

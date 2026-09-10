@@ -13,6 +13,14 @@ const SaveGame = preload("res://scripts/core/save_game.gd")
 const CLASS_SIZE: int = 18
 const RETIREMENT_AGE: int = 32
 
+# Territory resource effects at the draft (design doc section 4.1): an
+# Academy widens a drafted rookie's potential ceiling; territory won by
+# eliminating rivals (extra Capitals) sharpens the rookie's actual stats,
+# capped at their (possibly widened) potential.
+const ACADEMY_POTENTIAL_BONUS: int = 5
+const CAPITAL_QUALITY_BONUS_PER_TERRITORY: int = 3
+const MAX_CAPITAL_QUALITY_BONUS: int = 9
+
 var previous
 var next_number: int = 2
 var order: Array[int] = []
@@ -219,10 +227,22 @@ func _apply_pick(empire_id: int, rookie_index: int, cut_index: int) -> void:
     var team: Dictionary = previous.empire(empire_id)
     var rookie: Dictionary = draft_class.pop_at(rookie_index)
     rookie["rookie_season"] = next_number
+    _apply_territory_bonus(empire_id, rookie)
     var cut: Dictionary = team["players"][cut_index]
     team["players"][cut_index] = rookie
     picks.append({"pick": picks.size() + 1, "empire_id": empire_id, "rookie": rookie, "cut_name": cut["name"], "slot": Rosters.SLOT_TYPES[cut_index]})
     pick_cursor += 1
+
+func _apply_territory_bonus(empire_id: int, rookie: Dictionary) -> void:
+    var potential: Dictionary = rookie["potential"]
+    if previous.resource_count(empire_id, "Academy") > 0:
+        for key in Rosters.STAT_KEYS:
+            potential[key] = clampi(int(potential[key]) + ACADEMY_POTENTIAL_BONUS, int(potential[key]), 99)
+    var capitals: int = previous.resource_count(empire_id, "Capital")
+    if capitals > 1:
+        var bonus: int = mini((capitals - 1) * CAPITAL_QUALITY_BONUS_PER_TERRITORY, MAX_CAPITAL_QUALITY_BONUS)
+        for key in Rosters.STAT_KEYS:
+            rookie[key] = clampi(int(rookie[key]) + bonus, int(rookie[key]), int(potential[key]))
 
 # ---------------------------------------------------------------- next season
 

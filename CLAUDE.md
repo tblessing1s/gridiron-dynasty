@@ -68,4 +68,6 @@ tools/headless/   harnesses + run.sh
 
 Done: battle in three modes, 7-a-side with stats, cards on both sides, aftermath XP, raids, season map with AI empires and elimination, offseason with aging + draft + rookie protection, autosave/load.
 
-Open (see `docs/DESIGN.md` §12–13): territory resource effects, contracts, traits, training points, the champion's kept territory, balance passes (red-zone throws score too easily; Blitz is strong; ~4–5 empires alive at week 12), and an actual look at every screen in the editor.
+Done since: territory resource effects — Academy/Capital pay weekly training points, Mines pay money (banked on each empire, shown on the map; nothing spends them yet), Stadium/Capital grant the defender a home-crowd edge (wider attacker throw scatter live, lower completion in auto-resolve), Highlands double fatigue-bar accrual in the battle fought there, and Academy/Capital holdings bump a just-drafted rookie's potential/stats in the offseason.
+
+Open (see `docs/DESIGN.md` §12–13): attack-origin choice when several apply, contracts, traits, training points *spend* UI, the champion's kept territory, balance passes (red-zone throws score too easily; Blitz is strong; ~4–5 empires alive at week 12), and an actual look at every screen in the editor.

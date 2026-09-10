@@ -6,10 +6,13 @@ extends SceneTree
 const SeasonScript = preload("res://scripts/core/season.gd")
 const BattleSim = preload("res://scripts/core/battle_sim.gd")
 
+var previous_resources: Dictionary = {}
+
 func _initialize() -> void:
     var seasons: int = 5
     for s in range(seasons):
         var season = SeasonScript.new()
+        previous_resources.clear()
         var weeks_played: int = 0
         while not season.over and weeks_played < 40:
             weeks_played += 1
@@ -22,7 +25,7 @@ func _initialize() -> void:
                 var b: Dictionary = season.user_battle
                 var attacker: Dictionary = season.empire(int(b["attacker"]))
                 var defender: Dictionary = season.empire(int(b["defender"]))
-                var result: Dictionary = BattleSim.resolve(attacker, defender, season.rng)
+                var result: Dictionary = BattleSim.resolve(attacker, defender, season.rng, season.home_crowd_at(int(b["territory"])))
                 var attacker_won: bool = int(result["home_score"]) > int(result["away_score"])
                 var user_is_attacker: bool = int(b["attacker"]) == season.USER_EMPIRE
                 var user_won: bool = attacker_won if user_is_attacker else not attacker_won
@@ -49,4 +52,14 @@ func _check_invariants(season) -> void:
             assert(owned.size() > 0, "alive empire owns nothing")
             assert(owned.has(int(e["capital_id"])), "alive empire lost its capital without elimination")
         assert(e["players"].size() == 7, "roster size drifted")
+        var id: int = int(e["id"])
+        var training_points: int = int(e["training_points"])
+        var money: int = int(e["money"])
+        assert(training_points >= 0, "training points went negative")
+        assert(money >= 0, "money went negative")
+        if previous_resources.has(id):
+            var prior: Dictionary = previous_resources[id]
+            assert(training_points >= int(prior["training_points"]), "training points decreased")
+            assert(money >= int(prior["money"]), "money decreased")
+        previous_resources[id] = {"training_points": training_points, "money": money}
     assert(counted == season.territories.size(), "territory count drifted")

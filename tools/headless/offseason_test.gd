@@ -92,7 +92,7 @@ func _play_season(season) -> void:
         season.plan_week(target)
         if season.has_user_battle():
             var b: Dictionary = season.user_battle
-            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng)
+            var result: Dictionary = BattleSim.resolve(season.empire(int(b["attacker"])), season.empire(int(b["defender"])), season.rng, season.home_crowd_at(int(b["territory"])))
             var attacker_won: bool = int(result["home_score"]) > int(result["away_score"])
             var user_is_attacker: bool = int(b["attacker"]) == 0
             season.complete_user_battle(attacker_won if user_is_attacker else not attacker_won)
