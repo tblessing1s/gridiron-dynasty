@@ -5,7 +5,7 @@ extends RefCounted
 
 enum Mode { AUTO_RESOLVE, WATCH, PLAY, SIM }
 
-static var mode: int = Mode.PLAY
+static var mode: int = Mode.SIM
 
 static func mode_name(value: int) -> String:
     if value == Mode.AUTO_RESOLVE:

@@ -27,12 +27,14 @@ No franchise, player-development, save, draft, coaching, or league systems are i
 
 The current build replaces the single drive with one **Border War** battle between the Harbor Hawks and the Ironvale Forge: 7-a-side (QB, RB, two receivers, three linemen) on a 40-yard field, three possessions each, four downs with no punts or kicks, sudden death if tied. Every player has four stats (Speed, Power, Skill, Awareness) that drive route speed, pocket time, catch radius, interception radius, break-tackle odds, and pre-snap reads. The full design is in `docs/DESIGN.md`.
 
-The main menu offers four ways to play the same battle, for testing which one feels right:
+The main menu offers four ways to play the same battle, for testing which one feels right (default: SIM):
 
 - **PLAY** — you call plays on both sides and throw the ball yourself on your passing plays. Hold the QB to snap, pull back *away* from the receiver you want (slingshot), watch the landing marker, release to throw. Runs, the run after the catch, and the whole defense play themselves; you can still drag to steer a runner if you want to.
 - **WATCH** — you call every play on both sides and watch it play out in real time. No throwing.
-- **SIM** — you call every play on both sides, same as WATCH, but each down resolves instantly with the same card/stat math the auto-resolver uses instead of the real-time snap/pocket/throw sequence. Downs, the clock, scoring, and the border bar all update exactly as in the other modes; only the second-by-second physics is skipped. Use this if the live real-time battle isn't behaving the way you expect.
+- **SIM** (default) — you call every play on both sides, same as WATCH, but each down resolves instantly with the same card/stat math the auto-resolver uses instead of the real-time snap/pocket/throw sequence. Downs, the clock, scoring, and the border bar all update exactly as in the other modes; only the second-by-second physics is skipped. Use this if the live real-time battle isn't behaving the way you expect.
 - **AUTO-RESOLVE** — the whole battle is simulated with the same cards and stats and you get the box score, with no per-down control.
+
+The mode you pick carries into every battle you fight for the rest of the session — Quick Battle and every week of a season alike — until you change it again.
 
 Offense cards: Slants, Deep Shot, Draw, Screen. Defense cards: Cover, Blitz, Spy. Draw and Screen are automatic in every mode. SIM still credits a plausible player on each down (the QB and a receiver on a completed pass, the RB on a run, a rusher on a sack, the safety on an interception) so battle XP keeps accruing; only AUTO-RESOLVE's whole-battle box score earns no XP.
 
@@ -79,7 +81,7 @@ Territory resources now pay training points/money and apply battle modifiers (se
 
 1. Open this folder in Godot 4.x.
 2. Run the project (`F6`/`F5`, depending on editor workflow).
-3. Pick how you play battles (PLAY / WATCH / AUTO), then **NEW SEASON** or **QUICK BATTLE**.
+3. Pick how you play battles (PLAY / WATCH / SIM / AUTO — SIM by default), then **NEW SEASON** or **QUICK BATTLE**.
 
 ## Deploy the browser build
 
