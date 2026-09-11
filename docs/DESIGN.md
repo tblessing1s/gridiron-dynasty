@@ -160,7 +160,15 @@ After every down, the message line is followed by a **detail line** naming the e
 
 Any battle can be auto-resolved. The resolver runs the same play-call matrix and stat comparisons without the real-time step, producing a plausible box score. Used for AI-vs-AI battles every week and for the player when they choose to skip.
 
-### 5.9 Grid-tactics alternative
+### 5.9 Watching the play
+
+SIM resolves a down instantly with stat math — `BattleSim._resolve_play` decides yards, result, and turnover before anything animates. **The result is never in question by the time the field moves.** When `BattleSettings.replay` is on (default), the field plays a short canned animation of that already-decided outcome (`scripts/ui/play_replay.gd`) before the message and detail lines reveal it; the animation reads the same dictionary the aftermath's XP report reads (`offense_card`, `defense_card`, `ball_carrier`, `target`, `tackler`, `interceptor`, `air_yards`/`run_after`, `hole`, `pocket_seconds`, and the completion/sack/pick chances that applied), so it can never disagree with the numbers and there is no physics step that can fail. This is deliberately **not** routed through `scripts/football/` (the live-physics QB/receiver/defender actors) — the replay is tweens over the existing field view's marker drawing, reusing `player_body.gd`'s labelled-dot look for fourteen markers plus a small ball oval.
+
+Sequences, all tween-only and driven entirely by the result: a common opening snap into a per-card formation (Blitz crowds the line, Press presses the WRs, Spy mirrors the RB, wide splits for Deep Shot/Play Action, tight for Slants); a pass completion (QB drop, receiver's route to the air-yards mark, an arced ball — the same lateral-bow trick `football_game._update_projected_arc` uses for the aim line, since there is no third dimension on a top-down field — then run-after-catch to the tackler); an incompletion (the same throw, ball landing past the receiver); an interception (the ball cut off, a short animated return capped at 3 yards for drama without touching the sim's 0-yard result); a sack (the pocket collapsing onto the sack yard line); a run (handoff or, for Screen, a short toss, then through an inside or outside hole to the tackler); and a touchdown flourish on any of the above that reaches the end zone. `play_replay.skip()` jumps straight to the end state via `Tween.custom_step`, reachable by a click, tap, or keypress during the replay; `set_speed` scales the whole tween. `BattleSettings.replay_speed` (1×/1.5×/2×) is chosen on the main menu (shown only for SIM) and adjustable mid-battle from a scoreboard button, and both settings save with the mode.
+
+Headless harnesses default `BattleSettings.replay` to `false` so a down still resolves and asserts in the same tick it's called; `tools/headless/run.sh` also runs one `battle_test` pass with replay forced on, stepping frames and asserting every down still reaches the replay's `finished` state within a bounded timeout.
+
+### 5.10 Grid-tactics alternative
 
 Everything from the matchup screen to the aftermath is identical if 5.4/5.5 are replaced with a turn-based grid: players move a Speed-based number of squares, contact triggers a Power roll, throws roll on Skill vs. distance and coverage. Deferred; the real-time version has the head start.
 

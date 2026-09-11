@@ -102,17 +102,27 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
     var block_power: float = Rosters.line_power(op)
     var rush_power: float = Rosters.line_power(dp)
     var header: String = "%s vs %s (%s ×%.2f)" % [PlayBook.OFFENSE_NAMES[offense_card], PlayBook.DEFENSE_NAMES[defense_card], PlayBook.matchup_label(offense_card, defense_card), multiplier]
+    var pocket_seconds: float = _pocket_seconds(block_power, rush_power)
 
     if PlayBook.OFFENSE_IS_RUN[offense_card]:
         if offense_card == PlayBook.Offense.SWEEP:
-            return _resolve_sweep(op, dp, multiplier, header, rng)
+            return _resolve_sweep(op, dp, multiplier, header, rng, offense_card, defense_card, pocket_seconds)
         var run_edge: float = (float(_stat(op[1], "speed") + _stat(op[1], "power") - _stat(dp[1], "speed") - _stat(dp[1], "power")) + block_power - rush_power) / 300.0
         var run_factor: float = 1.0 + run_edge
         var mean: float = 5.0 if offense_card == PlayBook.Offense.DRAW else 6.0
         var deviation: float = 3.0 if offense_card == PlayBook.Offense.DRAW else 4.0
         var run_yards: int = int(round(rng.randfn(mean, deviation) * multiplier * run_factor))
+        var yards: int = maxi(run_yards, -3)
         var detail: String = "%s • %s SPD/PWR %d/%d vs %s LB %d/%d • LINE %d vs %d • edge %+d%%" % [header, str(op[1]["name"]), _stat(op[1], "speed"), _stat(op[1], "power"), str(dp[1]["name"]), _stat(dp[1], "speed"), _stat(dp[1], "power"), int(round(block_power)), int(round(rush_power)), int(round(run_edge * 100.0))]
-        return {"yards": maxi(run_yards, -3), "result": "RUN", "turnover": false, "detail": detail}
+        var extra: Dictionary = {"ball_carrier": 1, "tackler": 1, "hole": "inside"}
+        if offense_card == PlayBook.Offense.SCREEN:
+            extra["target"] = 1
+            extra["air_yards"] = clampi(2, 0, maxi(yards, 0))
+            extra["run_after"] = yards - int(extra["air_yards"])
+            extra["hole"] = "outside"
+        else:
+            extra["run_after"] = yards
+        return _finish({"yards": yards, "result": "RUN", "turnover": false, "detail": detail}, offense_card, defense_card, pocket_seconds, extra)
 
     var sack_chance: float = clampf(0.08 + (rush_power - block_power) * 0.004, 0.02, 0.35)
     if defense_card == PlayBook.Defense.BLITZ:
@@ -122,24 +132,30 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
     sack_chance = clampf(sack_chance, 0.02, 0.6)
     if rng.randf() < sack_chance:
         var sack_detail: String = "%s • SACKED • pocket %d vs rush %d • %d%% sack chance" % [header, int(round(block_power)), int(round(rush_power)), int(round(sack_chance * 100.0))]
-        return {"yards": -rng.randi_range(4, 8), "result": "SACK", "turnover": false, "detail": sack_detail}
+        var tackler: int = Rosters.LINE_START + rng.randi_range(0, Rosters.LINE_SIZE - 1)
+        var sack_extra: Dictionary = {"ball_carrier": 0, "tackler": tackler, "sack_chance": sack_chance}
+        return _finish({"yards": -rng.randi_range(4, 8), "result": "SACK", "turnover": false, "detail": sack_detail}, offense_card, defense_card, minf(pocket_seconds, 1.2), sack_extra)
 
+    var target: int = 3 if rng.randf() < 0.5 else 2
     var pass_edge: float = float(_stat(op[0], "skill") + _stat(op[2], "speed") + _stat(op[3], "speed") - _stat(dp[2], "speed") - _stat(dp[3], "speed") - _stat(dp[0], "awareness")) / 300.0
     var pass_factor: float = 1.0 + pass_edge
     var completion: float = 0.68
     var mean_yards: float = 7.0
     var deviation_yards: float = 4.0
     var interception_chance: float = 0.03
+    var air_ratio: float = 0.4
     if offense_card == PlayBook.Offense.DEEP_SHOT:
         completion = 0.42
         mean_yards = 18.0
         deviation_yards = 7.0
         interception_chance = 0.07
+        air_ratio = 0.85
     elif offense_card == PlayBook.Offense.PLAY_ACTION:
         completion = 0.56
         mean_yards = 11.0
         deviation_yards = 5.0
         interception_chance = 0.05
+        air_ratio = 0.6
     completion = clampf(completion * (0.75 + 0.25 * multiplier) * pass_factor, 0.1, 0.92)
     if attacker_penalty:
         completion *= HOME_CROWD_COMPLETION_FACTOR
@@ -147,31 +163,77 @@ static func _resolve_play(offense: Dictionary, defense: Dictionary, offense_card
         completion *= 0.9
         deviation_yards *= 1.25
     var complete_detail: String = "%s • %s SKL %d • WRs SPD %d/%d vs CBs %d/%d, %s AWR %d • %d%% to complete" % [header, str(op[0]["name"]), _stat(op[0], "skill"), _stat(op[2], "speed"), _stat(op[3], "speed"), _stat(dp[2], "speed"), _stat(dp[3], "speed"), str(dp[0]["name"]), _stat(dp[0], "awareness"), int(round(completion * 100.0))]
+    var pass_extra: Dictionary = {"target": target, "tackler": target, "completion_chance": completion, "sack_chance": sack_chance, "pick_chance": interception_chance}
     if rng.randf() < completion:
         var pass_yards: int = maxi(int(round(rng.randfn(mean_yards, deviation_yards) * multiplier * pass_factor)), 1)
-        return {"yards": pass_yards, "result": "PASS", "turnover": false, "detail": complete_detail}
+        var air_yards: int = clampi(int(round(float(pass_yards) * air_ratio)), 1, pass_yards)
+        pass_extra["ball_carrier"] = target
+        pass_extra["air_yards"] = air_yards
+        pass_extra["run_after"] = pass_yards - air_yards
+        return _finish({"yards": pass_yards, "result": "PASS", "turnover": false, "detail": complete_detail}, offense_card, defense_card, pocket_seconds, pass_extra)
     if multiplier < 1.0:
         interception_chance *= 2.0
+        pass_extra["pick_chance"] = interception_chance
     if rng.randf() < interception_chance:
         var pick_detail: String = "%s • INTERCEPTED • %s reads it • %d%% pick chance" % [header, str(dp[0]["name"]), int(round(interception_chance * 100.0))]
-        return {"yards": 0, "result": "INTERCEPTED", "turnover": true, "detail": pick_detail}
-    return {"yards": 0, "result": "INCOMPLETE", "turnover": false, "detail": complete_detail}
+        pass_extra["ball_carrier"] = -1
+        pass_extra["tackler"] = -1
+        pass_extra["interceptor"] = 0
+        pass_extra["air_yards"] = clampi(int(round(mean_yards * 0.8)), 1, 40)
+        return _finish({"yards": 0, "result": "INTERCEPTED", "turnover": true, "detail": pick_detail}, offense_card, defense_card, pocket_seconds, pass_extra)
+    pass_extra["ball_carrier"] = -1
+    pass_extra["air_yards"] = clampi(int(round(mean_yards * 0.8)), 1, 40)
+    pass_extra["run_after"] = 0
+    return _finish({"yards": 0, "result": "INCOMPLETE", "turnover": false, "detail": complete_detail}, offense_card, defense_card, pocket_seconds, pass_extra)
 
-static func _resolve_sweep(op: Array, dp: Array, multiplier: float, header: String, rng: RandomNumberGenerator) -> Dictionary:
+static func _resolve_sweep(op: Array, dp: Array, multiplier: float, header: String, rng: RandomNumberGenerator, offense_card: int, defense_card: int, pocket_seconds: float) -> Dictionary:
     var block_power: float = Rosters.line_power(op)
     var rush_power: float = Rosters.line_power(dp)
     var edge_speed: float = _edge_speed(dp)
     var run_edge: float = (float(_stat(op[1], "speed")) * 1.5 - edge_speed * 1.5 + (block_power - rush_power) * 0.5) / 300.0
     var run_factor: float = 1.0 + run_edge
     var run_yards: int = int(round(rng.randfn(6.0, 6.0) * multiplier * run_factor))
+    var yards: int = maxi(run_yards, -6)
     var detail: String = "%s • %s SPD %d vs edge %d • edge %+d%%" % [header, str(op[1]["name"]), _stat(op[1], "speed"), int(round(edge_speed)), int(round(run_edge * 100.0))]
-    return {"yards": maxi(run_yards, -6), "result": "RUN", "turnover": false, "detail": detail}
+    var extra: Dictionary = {"ball_carrier": 1, "tackler": 1, "hole": "outside", "run_after": yards}
+    return _finish({"yards": yards, "result": "RUN", "turnover": false, "detail": detail}, offense_card, defense_card, pocket_seconds, extra)
+
+# Merges a resolved play's core outcome (yards/result/turnover/detail) with
+# the structural fields the SIM replay (scripts/ui/play_replay.gd) and the
+# aftermath's XP report both read from, so all three agree with one source.
+static func _finish(base: Dictionary, offense_card: int, defense_card: int, pocket_seconds: float, extra: Dictionary) -> Dictionary:
+    var result: Dictionary = {
+        "offense_card": offense_card,
+        "defense_card": defense_card,
+        "ball_carrier": -1,
+        "target": -1,
+        "tackler": -1,
+        "interceptor": -1,
+        "air_yards": 0,
+        "run_after": 0,
+        "hole": "",
+        "pocket_seconds": pocket_seconds,
+        "completion_chance": 0.0,
+        "sack_chance": 0.0,
+        "pick_chance": 0.0,
+    }
+    for key in base.keys():
+        result[key] = base[key]
+    for key in extra.keys():
+        result[key] = extra[key]
+    return result
 
 static func _edge_speed(dp: Array) -> float:
     return (float(_stat(dp[1], "speed")) + float(_stat(dp[2], "speed")) + float(_stat(dp[3], "speed"))) / 3.0
 
 static func _stat(player: Dictionary, key: String) -> int:
     return int(player.get(key, 50))
+
+# How long the SIM replay (scripts/ui/play_replay.gd) shows the pocket
+# holding before the ball comes out or the rush gets home — a narrower,
+# replay-scaled range than the real-time engine's Rosters.pocket_seconds.
+static func _pocket_seconds(block_power: float, rush_power: float) -> float:
+    return clampf(1.4 + (block_power - rush_power) * 0.02, 0.6, 2.2)
 
 # ---------------------------------------------------------------- the call sheet
 

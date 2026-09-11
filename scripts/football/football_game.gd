@@ -16,6 +16,7 @@ const FootballScript = preload("res://scripts/football/football.gd")
 const ThrowTargetScript = preload("res://scripts/football/throw_target.gd")
 const ScoreboardScript = preload("res://scripts/ui/scoreboard.gd")
 const LineupStripsScript = preload("res://scripts/ui/lineup_strips.gd")
+const PlayReplayScript = preload("res://scripts/ui/play_replay.gd")
 const MatchupScreenScript = preload("res://scripts/ui/matchup_screen.gd")
 const AftermathScreenScript = preload("res://scripts/ui/aftermath_screen.gd")
 const RaidScreenScript = preload("res://scripts/ui/raid_screen.gd")
@@ -28,7 +29,7 @@ const PlayerRow = preload("res://scripts/ui/player_row.gd")
 # their own passing plays; runs, the run after the catch, and the defense all
 # play themselves.
 
-enum PlayState { CALLING, PRE_SNAP, LIVE_POCKET, LIVE_PASS, LIVE_RUN, DEAD, BATTLE_OVER }
+enum PlayState { CALLING, PRE_SNAP, LIVE_POCKET, LIVE_PASS, LIVE_RUN, REPLAYING, DEAD, BATTLE_OVER }
 
 const USER_TEAM: int = 0
 const TOTAL_POSSESSIONS: int = GameConstants.POSSESSIONS_PER_TEAM * 2
@@ -49,6 +50,7 @@ var world_view: Node2D
 var field
 var scoreboard
 var lineup_strips
+var play_replay
 var matchup_screen
 var aftermath_screen
 var raid_screen
@@ -260,6 +262,19 @@ func _on_matchup_auto() -> void:
     scoreboard.visible = true
     _auto_resolve()
 
+func _on_replay_toggled() -> void:
+    if not BattleSettings.replay:
+        BattleSettings.replay = true
+        BattleSettings.replay_speed = 1.0
+    elif BattleSettings.replay_speed < 1.9:
+        BattleSettings.replay_speed = 1.5 if BattleSettings.replay_speed < 1.4 else 2.0
+    else:
+        BattleSettings.replay = false
+    play_replay.set_speed(BattleSettings.replay_speed)
+    scoreboard.refresh_replay_button()
+    if season_mode:
+        SaveGame.save()
+
 func _on_tag_changed(index: int) -> void:
     franchise_tag_index = index
     if season_mode:
@@ -342,10 +357,14 @@ func _build_world() -> void:
 
     scoreboard = ScoreboardScript.new()
     scoreboard.card_selected.connect(_on_card_selected)
+    scoreboard.replay_toggled.connect(_on_replay_toggled)
     add_child(scoreboard)
 
     lineup_strips = LineupStripsScript.new()
     add_child(lineup_strips)
+
+    play_replay = PlayReplayScript.new()
+    world_view.add_child(play_replay)
 
     matchup_screen = MatchupScreenScript.new()
     matchup_screen.play_requested.connect(_on_matchup_play)
@@ -379,6 +398,9 @@ func _start_battle() -> void:
     _reset_battle_stats()
     _reset_calls_seen()
     lineup_strips.setup(teams[0], teams[1])
+    play_replay.setup(field, teams[0], teams[1])
+    scoreboard.set_replay_visible(mode == BattleSettings.Mode.SIM)
+    scoreboard.refresh_replay_button()
     _refresh_score()
     _start_possession(GameConstants.MIDFIELD_YARD, "%s attack first • possession 1 of %d • call the play" % [teams[attacker_team]["short"], TOTAL_POSSESSIONS])
 
@@ -689,16 +711,24 @@ func _resolve_sim_play() -> void:
     var defense: Dictionary = teams[1 - offense_team]
     var attacker_penalty: bool = home_crowd_active and offense_team == attacker_team
     var outcome: Dictionary = BattleSim.resolve_single_play(offense, defense, offense_card, defense_card, attacker_penalty, rng)
-    scoreboard.set_detail(str(outcome.get("detail", "")))
     current_carrier = null
     for i in range(battle_stats[offense_team].size()):
         _bump(offense_team, i, "plays")
         _bump(1 - offense_team, i, "plays")
 
+    if BattleSettings.replay:
+        state = PlayState.REPLAYING
+        scoreboard.set_message("Watch the play…")
+        await play_replay.play(outcome, ball_yard, offense_team == 0)
+
+    scoreboard.set_detail(str(outcome.get("detail", "")))
     var yards: int = int(outcome["yards"])
     var result: String = str(outcome["result"])
     var turnover: bool = bool(outcome["turnover"])
-    var scorer_index: int = 1 if PlayBook.OFFENSE_IS_RUN[offense_card] else (2 if rng.randf() < 0.5 else 3)
+    var target_index: int = int(outcome.get("target", -1))
+    var ball_carrier_index: int = int(outcome.get("ball_carrier", -1))
+    var tackler_index: int = int(outcome.get("tackler", -1))
+    var interceptor_index: int = int(outcome.get("interceptor", -1))
     var scores_touchdown: bool = not turnover and ball_yard + yards >= GameConstants.FIELD_YARDS
 
     match result:
@@ -706,19 +736,19 @@ func _resolve_sim_play() -> void:
             _bump(offense_team, 1, "yards", maxi(yards, 0))
             _bump(1 - offense_team, 1, "tackles")
         "SACK":
-            _bump(1 - offense_team, Rosters.LINE_START + rng.randi_range(0, Rosters.LINE_SIZE - 1), "sacks")
+            _bump(1 - offense_team, tackler_index, "sacks")
         "PASS":
             _bump(offense_team, 0, "completions")
-            _bump(offense_team, scorer_index, "catches")
-            _bump(offense_team, scorer_index, "yards", maxi(yards, 0))
+            _bump(offense_team, target_index, "catches")
+            _bump(offense_team, target_index, "yards", maxi(yards, 0))
         "INTERCEPTED":
-            _bump(1 - offense_team, 0, "interceptions")
+            _bump(1 - offense_team, interceptor_index, "interceptions")
         _:
             pass
-    _highlight_result(result, scorer_index)
+    _highlight_result(result, target_index, tackler_index, interceptor_index)
 
     if scores_touchdown:
-        _bump(offense_team, scorer_index, "touchdowns")
+        _bump(offense_team, ball_carrier_index, "touchdowns")
         _score_touchdown()
         return
     if turnover:
@@ -729,7 +759,7 @@ func _resolve_sim_play() -> void:
     var end_x: float = play_start_x + float(yards) * GameConstants.PIXELS_PER_YARD
     _finish_play(end_x, counts_yards, result)
 
-func _highlight_result(result: String, scorer_index: int) -> void:
+func _highlight_result(result: String, target_index: int, tackler_index: int, interceptor_index: int) -> void:
     match result:
         "RUN":
             lineup_strips.highlight_players(offense_team, [1])
@@ -738,11 +768,14 @@ func _highlight_result(result: String, scorer_index: int) -> void:
             lineup_strips.highlight_players(offense_team, [0, 4, 5, 6])
             lineup_strips.highlight_players(1 - offense_team, [4, 5, 6])
         "PASS":
-            lineup_strips.highlight_players(offense_team, [0, scorer_index])
-            lineup_strips.highlight_players(1 - offense_team, [scorer_index])
+            lineup_strips.highlight_players(offense_team, [0, target_index])
+            lineup_strips.highlight_players(1 - offense_team, [tackler_index])
+        "INCOMPLETE":
+            lineup_strips.highlight_players(offense_team, [0, target_index])
+            lineup_strips.highlight_players(1 - offense_team, [tackler_index])
         "INTERCEPTED":
             lineup_strips.highlight_players(offense_team, [0])
-            lineup_strips.highlight_players(1 - offense_team, [0])
+            lineup_strips.highlight_players(1 - offense_team, [interceptor_index])
         _:
             lineup_strips.highlight_players(offense_team, [0])
             lineup_strips.highlight_players(1 - offense_team, [])

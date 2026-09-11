@@ -1,8 +1,10 @@
 extends CanvasLayer
 
 const BorderBarScript = preload("res://scripts/ui/border_bar.gd")
+const BattleSettings = preload("res://scripts/core/battle_settings.gd")
 
 signal card_selected(index: int)
+signal replay_toggled
 
 const DOWN_NAMES: Array[String] = ["", "1ST", "2ND", "3RD", "4TH"]
 const CARD_WIDTH: float = 198.0
@@ -22,6 +24,7 @@ var read_label: Label
 var coach_label: Label
 var card_bar: ColorRect
 var card_buttons: Array = []
+var replay_button: Button
 
 func _ready() -> void:
     layer = 100
@@ -65,6 +68,14 @@ func _build_ui() -> void:
     mode_label.modulate = Color(1, 1, 1, 0.7)
     add_child(mode_label)
 
+    replay_button = Button.new()
+    replay_button.position = Vector2(1146, 60)
+    replay_button.size = Vector2(124, 40)
+    replay_button.add_theme_font_size_override("font_size", 11)
+    replay_button.pressed.connect(_on_replay_pressed)
+    replay_button.visible = false
+    add_child(replay_button)
+
     var card_bar_y: float = 720.0 - CARD_BAR_HEIGHT
     card_bar = ColorRect.new()
     card_bar.color = Color(0.03, 0.04, 0.05, 0.9)
@@ -100,6 +111,20 @@ func _make_label(pos: Vector2, size: Vector2, font_size: int) -> Label:
 
 func _on_card_pressed(index: int) -> void:
     card_selected.emit(index)
+
+func _on_replay_pressed() -> void:
+    replay_toggled.emit()
+
+# Only meaningful in SIM: AUTO-RESOLVE never replays and the hidden
+# real-time modes have no scripted-replay path at all.
+func set_replay_visible(shown: bool) -> void:
+    replay_button.visible = shown
+
+func refresh_replay_button() -> void:
+    if not BattleSettings.replay:
+        replay_button.text = "REPLAY: OFF"
+        return
+    replay_button.text = "REPLAY: %.1fx" % BattleSettings.replay_speed
 
 func update_score(home_score: int, away_score: int, home_name: String, away_name: String) -> void:
     score_label.text = "%s %d   %s %d" % [home_name, home_score, away_name, away_score]

@@ -18,6 +18,10 @@ var mode_arg: int = BattleSettings.Mode.SIM
 var sim_checks_done: int = 0
 var last_msg: String = ""
 var raid_confirmed_this_battle: bool = false
+var replay_arg: bool = false
+var awaiting_replay: bool = false
+var replay_deadline_frame: int = 0
+const REPLAY_TIMEOUT_FRAMES: int = 600
 
 func _initialize() -> void:
     var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -25,11 +29,19 @@ func _initialize() -> void:
         mode_arg = int(args[0])
     if args.size() > 1:
         battles_wanted = int(args[1])
+    if args.size() > 2:
+        replay_arg = int(args[2]) != 0
     BattleSettings.mode = mode_arg
+    # A resolved down's message/detail don't appear until the replay tween
+    # finishes, so the default run keeps it off for a synchronous, frame-
+    # exact test; replay_arg=1 exercises the tweened path instead (see the
+    # awaiting_replay branch below).
+    BattleSettings.replay = replay_arg
+    BattleSettings.replay_speed = 1.0
     var scene: PackedScene = load("res://scenes/game.tscn")
     game = scene.instantiate()
     root.add_child(game)
-    print("MODE ", BattleSettings.mode_name(mode_arg))
+    print("MODE ", BattleSettings.mode_name(mode_arg), " replay=", replay_arg)
 
 func _roster_line(team: Dictionary) -> String:
     var parts: PackedStringArray = PackedStringArray()
@@ -41,6 +53,25 @@ func _physics_process(_delta: float) -> bool:
     frames += 1
     if game == null:
         return true
+
+    # A down's message/detail don't appear until the replay tween's
+    # `finished` fires, so wait it out (bounded) instead of asserting on the
+    # same tick _on_card_selected was called.
+    if awaiting_replay:
+        if game.state == game.PlayState.REPLAYING:
+            assert(frames <= replay_deadline_frame, "SIM replay did not reach 'finished' within the timeout")
+            return false
+        awaiting_replay = false
+        assert(not game.scoreboard.detail_label.text.is_empty(), "SIM detail line should not be empty after a replayed down resolves")
+        assert(game.lineup_strips.rows[0].size() == 7 and game.lineup_strips.rows[1].size() == 7, "lineup strips should have seven rows per side")
+        for side in range(2):
+            for i in range(7):
+                assert(not str(game.lineup_strips.rows[side][i]["ovr"].text).is_empty(), "row overall should not be empty")
+        var any_highlight: bool = not game.lineup_strips.highlighted[0].is_empty() or not game.lineup_strips.highlighted[1].is_empty()
+        assert(any_highlight, "a highlight should be applied after a replayed SIM down")
+        if sim_checks_done < 3:
+            print("DETAIL (replayed): ", game.scoreboard.detail_label.text)
+            sim_checks_done += 1
 
     if game.matchup_screen.visible:
         if battles_done >= battles_wanted:
@@ -108,7 +139,10 @@ func _physics_process(_delta: float) -> bool:
             if sim_checks_done < 3:
                 print("COACH: ", game.scoreboard.coach_label.text)
         game._on_card_selected(index)
-        if mode_arg == BattleSettings.Mode.SIM:
+        if mode_arg == BattleSettings.Mode.SIM and replay_arg:
+            awaiting_replay = true
+            replay_deadline_frame = frames + REPLAY_TIMEOUT_FRAMES
+        elif mode_arg == BattleSettings.Mode.SIM:
             assert(not game.scoreboard.detail_label.text.is_empty(), "SIM detail line should not be empty after a down resolves")
             assert(game.lineup_strips.rows[0].size() == 7 and game.lineup_strips.rows[1].size() == 7, "lineup strips should have seven rows per side")
             for side in range(2):

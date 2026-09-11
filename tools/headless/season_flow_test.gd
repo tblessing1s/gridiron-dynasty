@@ -22,6 +22,7 @@ func _initialize() -> void:
     if args.size() > 1:
         weeks_wanted = int(args[1])
     BattleSettings.mode = mode_arg
+    BattleSettings.replay = false
     change_scene_to_file("res://scenes/main.tscn")
 
 func _physics_process(_delta: float) -> bool:
