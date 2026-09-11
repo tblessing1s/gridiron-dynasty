@@ -752,7 +752,11 @@ func _resolve_sim_play() -> void:
         _score_touchdown()
         return
     if turnover:
-        var spot_yard: int = clampi(ball_yard, 1, GameConstants.FIELD_YARDS - 1)
+        # An interception happens where the ball was picked off, not back at
+        # the snap — the replay shows it landing air_yards downfield, so the
+        # next possession's spot has to agree with what was on screen.
+        var air_yards: int = int(outcome.get("air_yards", 0))
+        var spot_yard: int = clampi(ball_yard + air_yards, 1, GameConstants.FIELD_YARDS - 1)
         _end_possession(GameConstants.FIELD_YARDS - spot_yard, "%s at the %d" % [result, spot_yard])
         return
     var counts_yards: bool = result != "INCOMPLETE"

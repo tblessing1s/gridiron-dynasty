@@ -298,9 +298,13 @@ func _sequence_run(result: Dictionary, los_x: float, offense_card: int, touchdow
         _tween.tween_property(rb, "position", Vector2(qb.position.x + 10.0, qb.position.y + 6.0), 0.3)
 
     var hole_y: float = CENTER_Y if hole == "inside" else CENTER_Y + 130.0
+    # Never push the RB past where the play actually ends — a stuffed or
+    # negative run should meet the tackler behind the line, not surge past
+    # the LOS first and snap backward once the loss "reveals" itself.
+    var hole_x: float = minf(los_x + 20.0, final_x)
     _tween.set_parallel(true)
-    _tween.tween_property(rb, "position", Vector2(los_x + 20.0, hole_y), 0.4)
-    _tween.tween_property(tackler, "position", Vector2(los_x + 20.0, hole_y), 0.5)
+    _tween.tween_property(rb, "position", Vector2(hole_x, hole_y), 0.4)
+    _tween.tween_property(tackler, "position", Vector2(hole_x, hole_y), 0.5)
     _tween.set_parallel(false)
 
     _tween.set_parallel(true)
