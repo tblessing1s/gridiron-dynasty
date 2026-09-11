@@ -79,7 +79,10 @@ static func _resolve_possession(offense: Dictionary, defense: Dictionary, start_
         var defense_card: int = PlayBook.ai_defense_card(down, yards_to_go, rng, sit, defense_tendency)
         var play: Dictionary = _resolve_play(offense, defense, offense_card, defense_card, rng, attacker_penalty)
         if play["turnover"]:
-            return {"touchdown": false, "end_yard": yard, "summary": "%s at the %d (%d plays)" % [play["result"], yard, plays]}
+            # An interception is picked off air_yards downfield, not back at
+            # the snap — match football_game._resolve_sim_play's spot.
+            var pick_yard: int = clampi(yard + int(play.get("air_yards", 0)), 1, GameConstants.FIELD_YARDS - 1)
+            return {"touchdown": false, "end_yard": pick_yard, "summary": "%s at the %d (%d plays)" % [play["result"], pick_yard, plays]}
         var yards: int = int(play["yards"])
         yard += yards
         if yard >= GameConstants.FIELD_YARDS:
